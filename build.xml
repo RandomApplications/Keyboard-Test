@@ -7,8 +7,8 @@
 <!-- the Compile on Save feature is turned off for the project. -->
 <!-- You can turn off the Compile on Save (or Deploy on Save) setting -->
 <!-- in the project's Project Properties dialog box.-->
-<project name="KeyboardTester" default="default" basedir=".">
-    <description>Builds, tests, and runs the project KeyboardTester.</description>
+<project name="Keyboard_Test" default="default" basedir=".">
+    <description>Builds, tests, and runs the project Keyboard Test.</description>
     <import file="nbproject/build-impl.xml"/>
     <!--
 
@@ -58,7 +58,7 @@
 
     An example of overriding the target for project execution could look like this:
 
-        <target name="run" depends="KeyboardTester-impl.jar">
+        <target name="run" depends="Keyboard_Test-impl.jar">
             <exec dir="bin" executable="launcher.exe">
                 <arg file="${dist.jar}"/>
             </exec>
@@ -70,4 +70,53 @@
     nbproject/build-impl.xml file. 
 
     -->
+    
+    <target name="-pre-compile">
+        <!-- UIScale Everything - SO EVERYTHING IS SCALED CORRECTLY ON HiDPI LINUX -->
+        <echo message="UIScaling Everything"/>
+        <exec executable="./Build Scripts/UIScale Everything.sh"/>
+    </target>
+    
+    <target name="-post-jar">
+        <!-- https://stackoverflow.com/questions/18451052/how-to-include-jars-in-lib-into-project-jar-file-in-netbeans -->
+        
+        <property name="store.jar.name" value="Keyboard_Test.jar"/>
+        <property name="store.dir" value="dist"/>
+        <property name="temp.dir" value="temp"/>
+        <property name="store.jar" value="${store.dir}/${store.jar.name}"/>
+        
+        <echo message="Packaging ${application.title} into a single JAR at ${store.jar} and zipping"/>
+        
+        <delete dir="${temp.dir}"/>
+        <mkdir dir="${temp.dir}"/>
+        
+        <jar destfile="${temp.dir}/temp_final.jar" filesetmanifest="skip">
+            <zipgroupfileset dir="dist" includes="*.jar"/>
+            <zipgroupfileset dir="libs" includes="*.jar"/>
+            <manifest>
+                <attribute name="Main-Class" value="${main.class}"/>
+                <attribute name="Enable-Native-Access" value="ALL-UNNAMED"/>
+            </manifest>
+        </jar>
+
+        <delete dir="${store.dir}"/>
+
+        <zip destfile="${store.jar}">
+            <zipfileset src="${temp.dir}/temp_final.jar" excludes="META-INF/*.SF, META-INF/*.DSA, META-INF/*.RSA"/>
+        </zip>
+        
+        <delete dir="${temp.dir}"/>
+
+        <!-- Create jar for macOS app build -->
+        <echo message="Compressing ${store.jar.name} for macOS"/>
+        <mkdir dir="${store.dir}/JAR for macOS"/>
+        <zip destfile="${store.dir}/JAR for macOS/${store.jar.name}">
+            <zipfileset src="${store.jar}"/>
+        </zip>
+        <!-- Do not zip or delete macOS jar, the following compile script uses it and then cleans up -->
+        
+        <!-- Compile jar for macOS into macOS App bundle -->
+        <echo message="Compiling ${store.jar.name} into App for macOS"/>
+        <exec executable="./Build Scripts/Compile Keyboard Test for Mac.sh"/>
+    </target>
 </project>

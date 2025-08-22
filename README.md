@@ -1,5 +1,5 @@
-# Keyboard Tester
-A simple Keyboard Tester in Java to help you while checking an old or damaged keyboard, to know which keys are working.
+# Keyboard Test
+Cross-platform Keyboard Test application written in Java.
 
 ## Building (using ant)
 
@@ -11,14 +11,14 @@ The project can be compiled and built using [Netbeans IDE](https://netbeans.apac
 ```bash
 ant jar
 ```
-The built java executable (jar) will be available at `dist/KeyboardTester.jar`
+The built java executable (jar) will be available at `dist/KeyboardTest.jar`
 
 ## Running
 
 If java is integrated in the desktop envirnmont, you can directly double click the jar file to run it.
 You can also run the java executable through command line,
 ```bash
-java -jar dist/KeyboardTester.jar
+java -jar dist/KeyboardTest.jar
 ```
 
 ## License

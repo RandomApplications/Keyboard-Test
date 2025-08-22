@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>LSMinimumSystemVersion</key>
+	<string>10.12.0</string>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>English</string>
+	<key>CFBundleAllowMixedLocalizations</key>
+	<true/>
+	<key>CFBundleExecutable</key>
+	<string>Keyboard Test</string>
+	<key>CFBundleIconFile</key>
+	<string>Keyboard Test.icns</string>
+	<key>CFBundleIdentifier</key>
+	<string>org.freegeek.Keyboard-Test</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>Keyboard Test</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	<key>CFBundleSignature</key>
+	<string>KBts</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.utilities</string>
+	<key>NSHumanReadableCopyright</key>
+	<string>Copyright © 2020 Rajnish Mishra
+Copyright © 2024-2025 Free Geek
+
+App Icon is “Keyboard” from Twemoji by Twitter licensed under CC-BY 4.0</string>
+	<key>NSHighResolutionCapable</key>
+	<string>true</string>
+	<key>LSMultipleInstancesProhibited</key>
+	<true/>
+</dict>
+</plist>
