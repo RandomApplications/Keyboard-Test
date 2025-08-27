@@ -107,6 +107,8 @@
         
         <delete dir="${temp.dir}"/>
 
+        <zip basedir="${store.dir}" destfile="${store.dir}/KeyboardTest-jar.zip" includes="${store.jar.name}"/>
+
         <!-- Create jar for macOS app build -->
         <echo message="Compressing ${store.jar.name} for macOS"/>
         <mkdir dir="${store.dir}/JAR for macOS"/>

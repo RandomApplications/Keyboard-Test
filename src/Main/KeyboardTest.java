@@ -28,22 +28,28 @@ import com.formdev.flatlaf.util.UIScale;
 import java.awt.Color;
 import java.awt.Desktop;
 import java.awt.Dimension;
+import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.Image;
+import java.awt.Insets;
 import java.awt.Taskbar;
 import java.awt.Toolkit;
 import java.awt.desktop.AboutEvent;
 import java.awt.event.KeyEvent;
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.time.Year;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import javax.imageio.ImageIO;
@@ -66,16 +72,22 @@ public class KeyboardTest extends javax.swing.JFrame {
     private final boolean debugLogging = false; // NOTE: Enabling "debugLogging" can cause freezing in WinRE (and maybe also Linux) when typing very fast.
 
     private LinkedHashMap<String, JLabel> keyLabels = new LinkedHashMap<>();
-    private boolean isWindows = false;
     private boolean isMacOS = false;
+    private boolean isLinux = false;
+    private boolean isWindows = false;
     private boolean isMacLaptop = false;
+    private boolean didPressAllMacLaptopKeyboardKeys = false;
+    private boolean isTogglingFullKeyboard = false;
     private boolean fullKeyboardHasBeenShown = false;
 
-    private final Border lastKeyPressedLabelBorder = BorderFactory.createLineBorder(Color.LIGHT_GRAY, UIScale.scale(2));
-    private final Border keyLabelBorder = BorderFactory.createLineBorder(new Color(153, 153, 153), UIScale.scale(2));
-    private final Border keyLabelOrangeHighlightBorder = BorderFactory.createLineBorder(new Color(255, 165, 0), UIScale.scale(2));
-    private final Border keyLabelGreenHighlightBorder = BorderFactory.createLineBorder(new Color(0, 128, 0), UIScale.scale(2));
-    private final Color keyLabelGreenHighlightBackgroundColor = new Color(44, 179, 44);
+    private String launchPath = "";
+    private String javaPath = "";
+
+    private Border lastKeyPressedLabelBorder;
+    private Border keyLabelBorder;
+    private Border keyLabelOrangeHighlightBorder;
+    private Border keyLabelGreenHighlightBorder;
+    private Color keyLabelGreenHighlightBackgroundColor;
 
     /**
      * @param args the command line arguments
@@ -97,16 +109,55 @@ public class KeyboardTest extends javax.swing.JFrame {
                 Taskbar.getTaskbar().setIconImage(ImageIO.read(KeyboardTest.class.getResource("/Resources/Twemoji/Keyboard1024.png"))); // For macOS Dock when run as JAR (not as compiled app bundle since it would override the ICNS file): https://stackoverflow.com/a/56924202
             }
         } catch (URISyntaxException | IllegalArgumentException | IOException | UnsupportedOperationException | SecurityException setTaskbarImageIconException) {
-            System.out.println("setTaskbarImageIconException: " + setTaskbarImageIconException);
+            // Ignore setTaskbarImageIconException
         }
 
-        // Set FlatLaf settings based on what's used in QA Helper (Copyright Free Geek - MIT License): https://github.com/freegeek-pdx/Java-QA-Helper/blob/main/src/GUI/QAHelper.java#L203-L317
+        // Set FlatLaf settings based on what's used in QA Helper (Copyright Free Geek - MIT License): https://github.com/freegeek-pdx/Java-QA-Helper/blob/b511d0259a657d1eebd4224a0950094f03d48156/src/GUI/QAHelper.java#L203-L317
         boolean shouldSetSystemLookAndFeel = false; // This is here just for easy debugging.
 
         if (!shouldSetSystemLookAndFeel) {
             try {
+                System.setProperty("flatlaf.uiScale.allowScaleDown", "true"); // https://www.formdev.com/flatlaf/system-properties/
+
+                int uiScalePercentage = 100;
+                for (String thisArg : args) {
+                    if (thisArg.matches("^[0-9]+%$")) {
+                        try {
+                            uiScalePercentage = Integer.parseInt(thisArg.substring(0, thisArg.length() - 1));
+                            if (uiScalePercentage < 50) {
+                                uiScalePercentage = 50;
+                            } else if (uiScalePercentage > 200) {
+                                uiScalePercentage = 200;
+                            }
+
+                            if (!isLinux && (uiScalePercentage != 100)) {
+                                // DO NOT set the "flatlaf.uiScale" on Linux because we first need to know the initial "userScaleFactor" based on the system scaling.
+                                // Windows and macOS do not use the "userScaleFactor" for system scaling, but Linux does and the initial value can only be know after setting the FlatLaf look and feel.
+                                // This setting is *supposed* to be set *before* setting the look and feel, but in testing it worked fine to set it after and then re-set the FlatLaf look and feel for our custom value to properly take effect.
+
+                                System.setProperty("flatlaf.uiScale", (uiScalePercentage + "%")); // https://www.formdev.com/flatlaf/system-properties/
+                            }
+                        } catch (NumberFormatException parseUIScaleArgumentException) {
+                            System.out.println("parseUIScaleArgumentException: " + parseUIScaleArgumentException);
+                        }
+                    }
+                }
+
+                System.setProperty("KeyboardTest.uiScalePercentage", Integer.toString(uiScalePercentage));
+                // Must set a system property to be able to know the custom scale percentage outside of this main method since cannot set a global variable here.
+                // It is important to save this value because on Linux it won't be the same as "flatlaf.uiScale" which will instead be the "uiScalePercentage" multiplied by the initial system "userScaleFactor".
+
                 FlatLaf defaultLaf = new FlatLightLaf();
-                UIManager.setLookAndFeel(isMacOS ? new com.formdev.flatlaf.themes.FlatMacLightLaf() : defaultLaf);
+                FlatLaf platformFlatLaf = (isMacOS ? new com.formdev.flatlaf.themes.FlatMacLightLaf() : defaultLaf);
+                UIManager.setLookAndFeel(platformFlatLaf);
+
+                if (isLinux && (uiScalePercentage != 100)) {
+                    // As noted above, Linux uses the "userScaleFactor" for the system scaling, and we can only know that initial value after setting the FlatLaf look and feel.
+                    // So, now that we know the initial "UserScaleFactor", we can multiply it by our desired "uiScalePercentage" to set the proper custom scaling with the initial system scaling treated as the starting point of 100%.
+
+                    System.setProperty("flatlaf.uiScale", (Math.round(UIScale.getUserScaleFactor() * uiScalePercentage) + "%")); // https://www.formdev.com/flatlaf/system-properties/
+                    UIManager.setLookAndFeel(platformFlatLaf); // Must RE-SET the FlatLaf look and feel after setting "flatlaf.uiScale" for the custom scaling to properly be applied to the titlebar and any dialogs.
+                }
 
                 // All FlatLaf options:
                 //  https://github.com/JFormDesigner/FlatLaf/tree/main/flatlaf-theme-editor/src/main/resources/com/formdev/flatlaf/themeeditor/FlatLafUIKeys.txt
@@ -235,6 +286,26 @@ public class KeyboardTest extends javax.swing.JFrame {
 
         initComponents();
 
+        uiScaleMenu.setEnabled(false); // "uiScaleMenu" will be set enabled and visible after loading the
+        uiScaleMenu.setVisible(false); // "launchPath" and "javaPath" is completed in the background below.
+
+        int uiScalePercentage = 100;
+        if (System.getProperty("KeyboardTest.uiScalePercentage") != null) {
+            uiScalePercentage = Integer.parseInt(System.getProperty("KeyboardTest.uiScalePercentage"));
+            // The ACTUAL custom scaling is only known in this system property that is set in "main()"
+            // because on Linux the "userScaleFactor" could either be the initial system scaling,
+            // or could be set to custom the "flatlaf.uiScale" which on Linux would be
+            // the intial system scaling multiplied by our custom scaling.
+        }
+
+        resetUIScaleMenuItem.setText("Reset UI Scale (Currently " + uiScalePercentage + "%)");
+
+        lastKeyPressedLabelBorder = lastKeyPressedLabel.getBorder();
+        keyLabelBorder = keyLabelEscape.getBorder();
+        keyLabelOrangeHighlightBorder = BorderFactory.createLineBorder(new Color(255, 165, 0), UIScale.scale(2));
+        keyLabelGreenHighlightBorder = BorderFactory.createLineBorder(new Color(0, 128, 0), UIScale.scale(2));
+        keyLabelGreenHighlightBackgroundColor = new Color(44, 179, 44);
+
         keyLabels.put("keyLabel" + KeyEvent.VK_ESCAPE, keyLabelEscape);
         keyLabels.put("keyLabel" + KeyEvent.VK_F1, keyLabelF1);
         keyLabels.put("keyLabel" + KeyEvent.VK_F2, keyLabelF2);
@@ -324,7 +395,7 @@ public class KeyboardTest extends javax.swing.JFrame {
         keyLabels.put("keyLabel" + KeyEvent.VK_PAUSE, keyLabelPause);
 
         keyLabels.put("keyLabel" + KeyEvent.VK_INSERT, keyLabelInsert);
-        keyLabels.put("keyLabel" + KeyEvent.VK_HELP, keyLabelInsert); // // On Mac keyboards, Insert (155) is Help (156) instead, so add a "keyLabels" entry which connects that key code to "keyLabelInsert".
+        keyLabels.put("keyLabel" + KeyEvent.VK_HELP, keyLabelInsert); // On Mac keyboards, Insert (155) is Help (156) instead, so add a "keyLabels" entry which connects that key code to "keyLabelInsert".
         keyLabels.put("keyLabel" + KeyEvent.VK_HOME, keyLabelHome);
         keyLabels.put("keyLabel" + KeyEvent.VK_PAGE_UP, keyLabelPageUp);
 
@@ -465,7 +536,21 @@ public class KeyboardTest extends javax.swing.JFrame {
 
             if (osName.startsWith("Windows")) {
                 isWindows = true;
-            } else {
+
+                try {
+                    File windowsKeyboardTestRelauncherFile = new File(System.getProperty("java.io.tmpdir"), "Keyboard_Test-Relauncher.cmd");
+
+                    if (windowsKeyboardTestRelauncherFile.exists()) {
+                        windowsKeyboardTestRelauncherFile.delete();
+                    }
+                } catch (Exception deleteTempRelauncherCmdException) {
+                    if (debugLogging) {
+                        System.out.println("deleteTempRelauncherCmdException: " + deleteTempRelauncherCmdException);
+                    }
+                }
+            } else if (osName.startsWith("Linux")) {
+                isLinux = true;
+
                 keyLabelRightStart.setVisible(false); // Hide Right Start Key because Linux never differentiates between Left and Right Start Key, so will only highlight Left Start Key either way.
             }
         }
@@ -473,12 +558,89 @@ public class KeyboardTest extends javax.swing.JFrame {
         resetPressedKeysMenuItemActionPerformed(null);
         toggleFullKeyboardMenuItemActionPerformed(null); // Always start with a non-Full Keyboard layout since generally testing laptops. The Full Keyboard layout will display automatically if any of those hidden keys are pressed.
 
-        (new SwingWorker<Void, String>() {
+        (new SwingWorker<Void, Void>() {
             @Override
             protected Void doInBackground() throws Exception {
                 for (;;) {
                     updateLockKeysState();
                     TimeUnit.SECONDS.sleep(1);
+                }
+            }
+        }).execute();
+
+        (new SwingWorker<Void, Void>() {
+            @Override
+            protected Void doInBackground() throws Exception { // Load the "javaPath" in the background because loading PowerShell for the Windows "javaPath" can add a noticable delay to the window opening after launch.
+                // The following code to get "javaPath" is based on code from QA Helper (Copyright Free Geek - MIT License): https://github.com/freegeek-pdx/Java-QA-Helper/blob/b511d0259a657d1eebd4224a0950094f03d48156/src/GUI/QAHelper.java#L1413-L1447
+
+                try {
+                    URI launchURI = KeyboardTest.class.getProtectionDomain().getCodeSource().getLocation().toURI();
+                    String launchURIString = launchURI.toString();
+
+                    if (isWindows && launchURIString.startsWith("file://")) {
+                        launchPath = new File(launchURIString.replace("file://", "//").replace("%20", " ")).getPath(); // To fix server (or Parallels shared folder) paths on Windows.
+                    } else {
+                        launchPath = new File(launchURI).getPath();
+                    }
+
+                    if (launchPath.endsWith(".jar")) {
+                        if (isMacOS && launchPath.endsWith(".app/Contents/app/Keyboard_Test.jar")) {
+                            launchPath = launchPath.substring(0, launchPath.lastIndexOf("/Contents/app/Keyboard_Test.jar"));
+                        } else if (isWindows) {
+                            try (BufferedReader commandReader = new BufferedReader(new InputStreamReader(Runtime.getRuntime().exec(new String[]{"\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", "(Get-CimInstance Win32_Process -Filter \\\"Name LIKE 'java%.exe' AND CommandLine LIKE '%Keyboard_Test%.jar%'\\\" | Select-Object -First 1).Path"}).getInputStream()))) {
+                                String firstLine;
+                                if ((firstLine = commandReader.readLine()) != null) {
+                                    javaPath = firstLine;
+                                }
+                            } catch (Exception getWindowsJavaPathException) {
+                                if (debugLogging) {
+                                    System.out.println("getWindowsJavaPathException: " + getWindowsJavaPathException);
+                                }
+                            }
+
+                            if (javaPath.endsWith("java.exe") && new File(javaPath.replace("java.exe", "javaw.exe")).exists()) {
+                                javaPath = javaPath.replace("java.exe", "javaw.exe");
+                            }
+                        } else {
+                            try (BufferedReader commandReader = new BufferedReader(new InputStreamReader(Runtime.getRuntime().exec(new String[]{"/usr/bin/pgrep", ("-fa" + (isMacOS ? "l" : "")), "Keyboard_Test.*\\.jar"}).getInputStream()))) {
+                                String thisLine;
+                                while ((thisLine = commandReader.readLine()) != null) {
+                                    if (!thisLine.contains("sudo ")) {
+                                        String runningJarInfoFirstPart = thisLine.split(" -jar ")[0];
+                                        javaPath = runningJarInfoFirstPart.substring(runningJarInfoFirstPart.indexOf(" ") + 1);
+                                        break;
+                                    }
+                                }
+                            } catch (Exception getJavaPathException) {
+                                if (debugLogging) {
+                                    System.out.println("getJavaPathException: " + getJavaPathException);
+                                }
+                            }
+
+                            if (javaPath.isEmpty() || !new File(javaPath).exists() || !new File(javaPath).canExecute()) {
+                                javaPath = "/usr/bin/java";
+                            }
+                        }
+                    }
+
+                    if (debugLogging) {
+                        System.out.println("launchPath: " + launchPath);
+                        System.out.println("javaPath: " + javaPath);
+                    }
+                } catch (URISyntaxException getLaunchPathException) {
+                    if (debugLogging) {
+                        System.out.println("getLaunchPathException: " + getLaunchPathException);
+                    }
+                }
+
+                return null;
+            }
+
+            @Override
+            protected void done() {
+                if (!launchPath.isEmpty() && new File(launchPath).exists() && ((isMacOS && launchPath.endsWith(".app")) || (!javaPath.isEmpty() && new File(javaPath).exists() && new File(javaPath).canExecute()))) {
+                    uiScaleMenu.setEnabled(true);
+                    uiScaleMenu.setVisible(true);
                 }
             }
         }).execute();
@@ -630,6 +792,10 @@ public class KeyboardTest extends javax.swing.JFrame {
         editMenu = new javax.swing.JMenu();
         resetPressedKeysMenuItem = new javax.swing.JMenuItem();
         toggleFullKeyboardMenuItem = new javax.swing.JMenuItem();
+        uiScaleMenu = new javax.swing.JMenu();
+        resetUIScaleMenuItem = new javax.swing.JMenuItem();
+        increaseUIScaleMenuItem = new javax.swing.JMenuItem();
+        decreaseUIScaleMenuItem = new javax.swing.JMenuItem();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
         setTitle("Keyboard Test");
@@ -2420,6 +2586,38 @@ public class KeyboardTest extends javax.swing.JFrame {
 
             mainMenuBar.add(editMenu);
 
+            uiScaleMenu.setText("UI Scale");
+
+            resetUIScaleMenuItem.setAccelerator(javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_0, java.awt.event.InputEvent.CTRL_DOWN_MASK));
+            resetUIScaleMenuItem.setText("Reset UI Scale");
+            resetUIScaleMenuItem.addActionListener(new java.awt.event.ActionListener() {
+                public void actionPerformed(java.awt.event.ActionEvent evt) {
+                    resetUIScaleMenuItemActionPerformed(evt);
+                }
+            });
+            uiScaleMenu.add(resetUIScaleMenuItem);
+
+            increaseUIScaleMenuItem.setAccelerator(javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_EQUALS, java.awt.event.InputEvent.CTRL_DOWN_MASK));
+            increaseUIScaleMenuItem.setText("Increase UI Scale");
+            increaseUIScaleMenuItem.addActionListener(new java.awt.event.ActionListener() {
+                public void actionPerformed(java.awt.event.ActionEvent evt) {
+                    increaseUIScaleMenuItemActionPerformed(evt);
+                }
+            });
+            uiScaleMenu.add(increaseUIScaleMenuItem);
+
+            decreaseUIScaleMenuItem.setAccelerator(javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_MINUS, java.awt.event.InputEvent.CTRL_DOWN_MASK));
+            decreaseUIScaleMenuItem.setText("Decrease UI Scale ");
+            decreaseUIScaleMenuItem.setToolTipText("");
+            decreaseUIScaleMenuItem.addActionListener(new java.awt.event.ActionListener() {
+                public void actionPerformed(java.awt.event.ActionEvent evt) {
+                    decreaseUIScaleMenuItemActionPerformed(evt);
+                }
+            });
+            uiScaleMenu.add(decreaseUIScaleMenuItem);
+
+            mainMenuBar.add(uiScaleMenu);
+
             setJMenuBar(mainMenuBar);
 
             javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
@@ -2455,7 +2653,7 @@ public class KeyboardTest extends javax.swing.JFrame {
         if ((keyCode == KeyEvent.VK_CAPS_LOCK) || (!isMacOS && ((keyCode == KeyEvent.VK_NUM_LOCK) || (keyCode == KeyEvent.VK_SCROLL_LOCK)))) {
             updateLockKeysState();
         } else if (!isMacOS && ((keyCode == KeyEvent.VK_ALT) || (keyCode == KeyEvent.VK_F10))) { // If Alt or F10 keys are pressed, it will highlight the menu bar and steal focus from the "textArea" and interrupt typing, so manually re-focus "textArea" after a half second delay.
-            (new SwingWorker<Void, String>() {
+            (new SwingWorker<Void, Void>() {
                 @Override
                 protected Void doInBackground() throws Exception {
                     TimeUnit.MILLISECONDS.sleep(500);
@@ -2583,38 +2781,7 @@ public class KeyboardTest extends javax.swing.JFrame {
         }
 
         JLabel pressedKeyLabel = keyLabels.get(keyLabelKeyCodeName);
-        if (pressedKeyLabel != null) {
-            if ((!pressedKeyLabel.isVisible() && keyLocation.equals("Right"))
-                    || (!topOtherKeysPanel.isVisible() && ((keyCode == KeyEvent.VK_PRINTSCREEN) || (keyCode == KeyEvent.VK_SCROLL_LOCK) || (keyCode == KeyEvent.VK_PAUSE)))
-                    || (!otherKeysPanel.isVisible() && ((keyCode == KeyEvent.VK_INSERT) || (keyCode == KeyEvent.VK_HOME) || (keyCode == KeyEvent.VK_PAGE_UP) || (keyCode == KeyEvent.VK_DELETE) || (keyCode == KeyEvent.VK_END) || (keyCode == KeyEvent.VK_PAGE_DOWN)))
-                    || (!numPadPanel.isVisible() && keyLocation.equals("NumPad"))) {
-                toggleFullKeyboardMenuItemActionPerformed(null);
-            }
-
-            pressedKeyLabel.setBorder(keyLabelOrangeHighlightBorder);
-            pressedKeyLabel.setBackground(Color.ORANGE);
-            pressedKeyLabel.setForeground(Color.BLACK);
-
-            (new SwingWorker<Void, String>() {
-                @Override
-                protected Void doInBackground() throws Exception {
-                    TimeUnit.MILLISECONDS.sleep(200);
-
-                    return null;
-                }
-
-                @Override
-                protected void done() {
-                    if (pressedKeyLabel.getBackground().equals(Color.ORANGE)) { // If keyboard was reset, the button will no longer be Orange and the color should not be changed to Green after the delay.
-                        pressedKeyLabel.setBorder(keyLabelGreenHighlightBorder);
-                        pressedKeyLabel.setBackground(keyLabelGreenHighlightBackgroundColor);
-                        pressedKeyLabel.setForeground(Color.WHITE);
-                    }
-
-                    textArea.requestFocusInWindow();
-                }
-            }).execute();
-        } else {
+        if (pressedKeyLabel == null) {
             if (debugLogging) {
                 System.out.println("keyLabelKeyCodeName NOT FOUND: " + keyLabelKeyCodeName);
             }
@@ -2623,7 +2790,7 @@ public class KeyboardTest extends javax.swing.JFrame {
             lastKeyPressedLabel.setBackground(Color.ORANGE);
             lastKeyPressedLabel.setForeground(Color.BLACK);
 
-            (new SwingWorker<Void, String>() {
+            (new SwingWorker<Void, Void>() {
                 @Override
                 protected Void doInBackground() throws Exception {
                     TimeUnit.MILLISECONDS.sleep(200);
@@ -2642,121 +2809,181 @@ public class KeyboardTest extends javax.swing.JFrame {
                     textArea.requestFocusInWindow();
                 }
             }).execute();
-        }
-
-        if (isMacLaptop && !fullKeyboardHasBeenShown) { // Can only *know* if all keys have been pressed on Mac laptops since they are the only devices with consistent keyboards across all models.
-            int pressedKeyCount = 0;
-            for (JLabel thisKeyLabel : keyLabels.values()) {
-                if (!thisKeyLabel.getBackground().equals(Color.WHITE)) {
-                    pressedKeyCount++;
-                }
+        } else {
+            if ((!pressedKeyLabel.isVisible() && keyLocation.equals("Right"))
+                    || (!topOtherKeysPanel.isVisible() && ((keyCode == KeyEvent.VK_PRINTSCREEN) || (keyCode == KeyEvent.VK_SCROLL_LOCK) || (keyCode == KeyEvent.VK_PAUSE)))
+                    || (!otherKeysPanel.isVisible() && ((keyCode == KeyEvent.VK_INSERT) || (keyCode == KeyEvent.VK_HOME) || (keyCode == KeyEvent.VK_PAGE_UP) || (keyCode == KeyEvent.VK_DELETE) || (keyCode == KeyEvent.VK_END) || (keyCode == KeyEvent.VK_PAGE_DOWN)))
+                    || (!numPadPanel.isVisible() && keyLocation.equals("NumPad"))) {
+                toggleFullKeyboardMenuItemActionPerformed(null);
             }
 
-            if (pressedKeyCount == 77) {
-                JFrame keyboardTestWindow = this;
-                (new SwingWorker<Void, String>() {
-                    @Override
-                    protected Void doInBackground() throws Exception {
-                        TimeUnit.MILLISECONDS.sleep(400);
+            pressedKeyLabel.setBorder(keyLabelOrangeHighlightBorder);
+            pressedKeyLabel.setBackground(Color.ORANGE);
+            pressedKeyLabel.setForeground(Color.BLACK);
 
-                        return null;
+            (new SwingWorker<Void, Void>() {
+                @Override
+                protected Void doInBackground() throws Exception {
+                    TimeUnit.MILLISECONDS.sleep(200);
+
+                    return null;
+                }
+
+                @Override
+                protected void done() {
+                    if (pressedKeyLabel.getBackground().equals(Color.ORANGE)) { // If keyboard was reset, the button will no longer be Orange and the color should not be changed to Green after the delay.
+                        pressedKeyLabel.setBorder(keyLabelGreenHighlightBorder);
+                        pressedKeyLabel.setBackground(keyLabelGreenHighlightBackgroundColor);
+                        pressedKeyLabel.setForeground(Color.WHITE);
                     }
 
-                    @Override
-                    protected void done() {
-                        boolean isRunningFromQAHelper = false;
-                        ArrayList<String> launchNextMacTestBootAppDialogButtons = new ArrayList<>();
-                        try {
-                            String launchPath = new File(KeyboardTest.class.getProtectionDomain().getCodeSource().getLocation().toURI()).getPath();
-                            if (launchPath.contains("/qa_helper-Keyboard_Test") && launchPath.endsWith(".jar")) {
-                                isRunningFromQAHelper = true;
-                            } else if (launchPath.equals("/Applications/Keyboard Test.app/Contents/app/Keyboard_Test.jar") && new File("/Applications/Test Boot Setup.app").exists() && System.getProperty("user.name").equals("Tester")) {
-                                if (new File("/Applications/CPU Stress Test.app").exists()) {
-                                    launchNextMacTestBootAppDialogButtons.add("Launch \"CPU Stress Test\"");
-                                }
-                                if (new File("/Applications/DriveDx.app").exists()) {
-                                    launchNextMacTestBootAppDialogButtons.add("Launch \"DriveDx\"");
-                                }
-                            }
-                        } catch (URISyntaxException checkMacLaunchPathException) {
-                            if (debugLogging) {
-                                System.out.println("checkMacLaunchPathException: " + checkMacLaunchPathException);
-                            }
+                    textArea.requestFocusInWindow();
+                }
+            }).execute();
+
+            if (isMacLaptop && !didPressAllMacLaptopKeyboardKeys && !fullKeyboardHasBeenShown) { // Can only *know* if all keys have been pressed on Mac laptops since they are the only devices with consistent keyboards across all models.
+                int pressedKeyCount = 0;
+                for (JLabel thisKeyLabel : keyLabels.values()) {
+                    if (!thisKeyLabel.getBackground().equals(Color.WHITE)) {
+                        pressedKeyCount++;
+                    }
+                }
+
+                if (pressedKeyCount == 77) {
+                    didPressAllMacLaptopKeyboardKeys = true;
+
+                    JFrame keyboardTestWindow = this;
+                    (new SwingWorker<Void, Void>() {
+                        @Override
+                        protected Void doInBackground() throws Exception {
+                            TimeUnit.MILLISECONDS.sleep(400);
+
+                            return null;
                         }
 
-                        String[] everyKeyPressedDialogButtons = new String[]{(isRunningFromQAHelper ? "Quit & Return to \"QA Helper\"" : (launchNextMacTestBootAppDialogButtons.isEmpty() ? "Quit" : "Continue")), "Reset Keyboard Test"};
-                        int everyKeyPressedDialogReturn = JOptionPane.showOptionDialog(keyboardTestWindow, "<html>"
-                                + "<b style=\"color: orange;\">Every Key Was Pressed!</b><br/>"
-                                + "<br/><br/>"
-                                + "<b style=\"color: green;\"><u>KEYBOARD TEST PASSED IF:</u></b><br/>"
-                                + "- Every key functioned correctly.<br/>"
-                                + "- No keys felt funky in any way.<br/>"
-                                + "- No keys felt sticky or got stuck down.<br/>"
-                                + "- No key caps are broken or missing.<br/>"
-                                + "<br/><br/>"
-                                + "<b style=\"color: #D83048;\"><u>KEYBOARD TEST FAILED IF:</u></b><br/>"
-                                + "- Any key did not function correctly.<br/>"
-                                + "- Any key triggered the wrong key.<br/>"
-                                + "- Any key triggered multiple keys.<br/>"
-                                + "- Any key felt funky in any way.<br/>"
-                                + "- Any key felt sticky or got stuck down.<br/>"
-                                + "- Any key caps are broken or missing."
-                                + "</html>", "Finished Keyboard Test", JOptionPane.OK_CANCEL_OPTION, JOptionPane.INFORMATION_MESSAGE, null, everyKeyPressedDialogButtons, everyKeyPressedDialogButtons[0]);
-
-                        if (everyKeyPressedDialogReturn == 0) {
-                            if (isRunningFromQAHelper) {
-                                try {
-                                    Runtime.getRuntime().exec(new String[]{"/usr/bin/open", "-b", "org.freegeek.QA-Helper"}).waitFor();
-                                } catch (IOException | InterruptedException focusQAHelperException) {
-                                    if (debugLogging) {
-                                        System.out.println("focusQAHelperException: " + focusQAHelperException);
+                        @Override
+                        protected void done() {
+                            boolean isRunningFromQAHelper = false;
+                            ArrayList<String> launchNextMacTestBootAppDialogButtons = new ArrayList<>();
+                            try {
+                                String launchPath = new File(KeyboardTest.class.getProtectionDomain().getCodeSource().getLocation().toURI()).getPath();
+                                if (launchPath.contains("/qa_helper-Keyboard_Test") && launchPath.endsWith(".jar")) {
+                                    isRunningFromQAHelper = true;
+                                } else if (launchPath.equals("/Applications/Keyboard Test.app/Contents/app/Keyboard_Test.jar") && new File("/Applications/Test Boot Setup.app").exists() && System.getProperty("user.name").equals("Tester")) {
+                                    if (new File("/Applications/CPU Stress Test.app").exists()) {
+                                        launchNextMacTestBootAppDialogButtons.add("Launch \"CPU Stress Test\"");
+                                    }
+                                    if (new File("/Applications/DriveDx.app").exists()) {
+                                        launchNextMacTestBootAppDialogButtons.add("Launch \"DriveDx\"");
                                     }
                                 }
-                            } else if (!launchNextMacTestBootAppDialogButtons.isEmpty()) {
-                                launchNextMacTestBootAppDialogButtons.add("Quit");
-                                int launchNextMacTestBootAppDialogReturn = JOptionPane.showOptionDialog(keyboardTestWindow, "What would you like to do next?", "Finished Keyboard Test", JOptionPane.DEFAULT_OPTION, JOptionPane.INFORMATION_MESSAGE, null, launchNextMacTestBootAppDialogButtons.toArray(), launchNextMacTestBootAppDialogButtons.get(0));
-
-                                String launchNextMacTestBootAppDialogDialogResponseString = "Quit";
-                                if (launchNextMacTestBootAppDialogReturn > -1) {
-                                    launchNextMacTestBootAppDialogDialogResponseString = launchNextMacTestBootAppDialogButtons.get(launchNextMacTestBootAppDialogReturn);
+                            } catch (URISyntaxException checkMacLaunchPathException) {
+                                if (debugLogging) {
+                                    System.out.println("checkMacLaunchPathException: " + checkMacLaunchPathException);
                                 }
+                            }
 
-                                if (!launchNextMacTestBootAppDialogDialogResponseString.equals("Quit")) {
+                            // Make sure all pressed buttons are Green before the dialog is displayed so they aren't stuck as Orange while the dialog is displayed.
+                            for (JLabel thisKeyLabel : keyLabels.values()) {
+                                if (thisKeyLabel.getBackground().equals(Color.ORANGE)) {
+                                    thisKeyLabel.setBorder(keyLabelGreenHighlightBorder);
+                                    thisKeyLabel.setBackground(keyLabelGreenHighlightBackgroundColor);
+                                    thisKeyLabel.setForeground(Color.WHITE);
+                                }
+                            }
+
+                            if (lastKeyPressedLabel.getBackground().equals(Color.ORANGE)) {
+                                lastKeyPressedLabel.setBorder(keyLabelGreenHighlightBorder);
+                                lastKeyPressedLabel.setBackground(keyLabelGreenHighlightBackgroundColor);
+                                lastKeyPressedLabel.setForeground(Color.WHITE);
+                            }
+
+                            String[] everyKeyPressedDialogButtons = new String[]{(isRunningFromQAHelper ? "Quit & Return to \"QA Helper\"" : (launchNextMacTestBootAppDialogButtons.isEmpty() ? "Quit" : "Continue")), "Reset Keyboard Test"};
+                            int everyKeyPressedDialogReturn = JOptionPane.showOptionDialog(keyboardTestWindow, "<html>"
+                                    + "<b style=\"color: orange;\">Every Key Was Pressed!</b><br/>"
+                                    + "<br/><br/>"
+                                    + "<b style=\"color: green;\"><u>KEYBOARD TEST PASSED IF:</u></b><br/>"
+                                    + "- Every key functioned correctly.<br/>"
+                                    + "- No keys felt funky in any way.<br/>"
+                                    + "- No keys felt sticky or got stuck down.<br/>"
+                                    + "- No key caps are broken or missing.<br/>"
+                                    + "<br/><br/>"
+                                    + "<b style=\"color: #D83048;\"><u>KEYBOARD TEST FAILED IF:</u></b><br/>"
+                                    + "- Any key did not function correctly.<br/>"
+                                    + "- Any key triggered the wrong key.<br/>"
+                                    + "- Any key triggered multiple keys.<br/>"
+                                    + "- Any key felt funky in any way.<br/>"
+                                    + "- Any key felt sticky or got stuck down.<br/>"
+                                    + "- Any key caps are broken or missing."
+                                    + "</html>", "Finished Keyboard Test", JOptionPane.OK_CANCEL_OPTION, JOptionPane.INFORMATION_MESSAGE, null, everyKeyPressedDialogButtons, everyKeyPressedDialogButtons[0]);
+
+                            if (everyKeyPressedDialogReturn == 0) {
+                                if (isRunningFromQAHelper) {
                                     try {
-                                        Runtime.getRuntime().exec(new String[]{"/usr/bin/open", "-a", "/Applications/" + (launchNextMacTestBootAppDialogDialogResponseString.contains("DriveDx") ? "DriveDx" : "CPU Stress Test") + ".app"}).waitFor();
-                                    } catch (IOException | InterruptedException launchNextMacTestBootAppException) {
+                                        Runtime.getRuntime().exec(new String[]{"/usr/bin/open", "-b", "org.freegeek.QA-Helper"}).waitFor();
+                                    } catch (IOException | InterruptedException focusQAHelperException) {
                                         if (debugLogging) {
-                                            System.out.println("launchNextMacTestBootAppException: " + launchNextMacTestBootAppException);
+                                            System.out.println("focusQAHelperException: " + focusQAHelperException);
+                                        }
+                                    }
+                                } else if (!launchNextMacTestBootAppDialogButtons.isEmpty()) {
+                                    launchNextMacTestBootAppDialogButtons.add("Quit");
+                                    int launchNextMacTestBootAppDialogReturn = JOptionPane.showOptionDialog(keyboardTestWindow, "What would you like to do next?", "Finished Keyboard Test", JOptionPane.DEFAULT_OPTION, JOptionPane.INFORMATION_MESSAGE, null, launchNextMacTestBootAppDialogButtons.toArray(), launchNextMacTestBootAppDialogButtons.get(0));
+
+                                    String launchNextMacTestBootAppDialogDialogResponseString = "Quit";
+                                    if (launchNextMacTestBootAppDialogReturn > -1) {
+                                        launchNextMacTestBootAppDialogDialogResponseString = launchNextMacTestBootAppDialogButtons.get(launchNextMacTestBootAppDialogReturn);
+                                    }
+
+                                    if (!launchNextMacTestBootAppDialogDialogResponseString.equals("Quit")) {
+                                        try {
+                                            Runtime.getRuntime().exec(new String[]{"/usr/bin/open", "-a", "/Applications/" + (launchNextMacTestBootAppDialogDialogResponseString.contains("DriveDx") ? "DriveDx" : "CPU Stress Test") + ".app"}).waitFor();
+                                        } catch (IOException | InterruptedException launchNextMacTestBootAppException) {
+                                            if (debugLogging) {
+                                                System.out.println("launchNextMacTestBootAppException: " + launchNextMacTestBootAppException);
+                                            }
                                         }
                                     }
                                 }
-                            }
 
-                            System.exit(0);
-                        } else {
-                            resetPressedKeysMenuItemActionPerformed(null);
+                                System.exit(0);
+                            } else {
+                                resetPressedKeysMenuItemActionPerformed(null);
+                            }
                         }
-                    }
-                }).execute();
+                    }).execute();
+                }
             }
         }
     }//GEN-LAST:event_onKeyPressed
 
     private void resetPressedKeysMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_resetPressedKeysMenuItemActionPerformed
+        if (isMacLaptop) {
+            didPressAllMacLaptopKeyboardKeys = false;
+        }
+
         (new SwingWorker<Void, String>() {
             @Override
             protected Void doInBackground() throws Exception {
-                for (JLabel thisKeyLabel : keyLabels.values()) { // Since a "keyLabels" is a "LinkedHashMap", the order of keys and values is preserved (https://stackoverflow.com/a/2924143).
-                    if (!thisKeyLabel.getBackground().equals(Color.WHITE)) {
+                for (Map.Entry<String, JLabel> thisKeyLabelEntry : keyLabels.entrySet()) { // Since a "keyLabels" is a "LinkedHashMap", the order of keys and values is preserved (https://stackoverflow.com/a/2924143).
+                    if (!thisKeyLabelEntry.getValue().getBackground().equals(Color.WHITE)) {
                         TimeUnit.MILLISECONDS.sleep(10); // Add a slight delay so there is a nice looking affect of the keys being reset in order across the keyboard.
 
-                        thisKeyLabel.setBorder(keyLabelBorder);
-                        thisKeyLabel.setBackground(Color.WHITE);
-                        thisKeyLabel.setForeground(Color.BLACK);
+                        publish(thisKeyLabelEntry.getKey());
                     }
                 }
 
                 return null;
+            }
+
+            @Override
+            protected void process(java.util.List<String> tasks) {
+                tasks.forEach((thisKeyLabelKey) -> {
+                    JLabel thisKeyLabel = keyLabels.get(thisKeyLabelKey);
+                    thisKeyLabel.setBorder(keyLabelBorder);
+                    thisKeyLabel.setBackground(Color.WHITE);
+                    thisKeyLabel.setForeground(Color.BLACK);
+                });
             }
         }).execute();
 
@@ -2767,7 +2994,7 @@ public class KeyboardTest extends javax.swing.JFrame {
             lastKeyPressedLabel.setForeground(Color.GRAY);
         }
 
-        textArea.setText("- The best way to test a keyboard is to TYPE ACTUAL WORDS and make sure that exactly what you typed shows up in this text box and that each key below this text box highlights GREEN as you type it.\n"
+        textArea.setText("- The best way to test a keyboard is to TYPE ACTUAL WORDS and make sure that exactly what you typed shows up in this text box and that each key below this text box highlights GREEN as you type.\n"
                 + "\n"
                 + "- Start testing the keyboard by typing \"The quick brown fox jumps over the lazy dog.\"\n"
                 + "\n"
@@ -2783,7 +3010,7 @@ public class KeyboardTest extends javax.swing.JFrame {
                 + "- You MAY need to hold down the FN key to test the top row of Function keys.\n"
                 + "\n"
                 + "- Also, make sure that no keys feel funky, sticky, or get stuck down as you type.");
-        textArea.setFont(new Font("Helvetica", 0, UIScale.scale(isMacOS ? 16 : 14)));
+        textArea.setFont(new Font("Helvetica", 0, UIScale.scale(isMacOS ? 17 : 14)));
         textArea.setForeground(Color.GRAY);
         textArea.setCaretColor(Color.WHITE);
         textArea.setCaretPosition(0);
@@ -2793,34 +3020,280 @@ public class KeyboardTest extends javax.swing.JFrame {
     }//GEN-LAST:event_resetPressedKeysMenuItemActionPerformed
 
     private void toggleFullKeyboardMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_toggleFullKeyboardMenuItemActionPerformed
-        numPadPanel.setVisible(!numPadPanel.isVisible());
+        if (!isTogglingFullKeyboard) {
+            isTogglingFullKeyboard = true;
 
-        if (isMacOS) {
-            otherKeysPanel.setVisible(!otherKeysPanel.isVisible());
-            keyLabelRightControl.setVisible(!keyLabelRightControl.isVisible()); // On Mac keyboards, Right Control Key is only shown on full keyboard layouts.
-        } else {
-            topOtherKeysPanel.setVisible(!topOtherKeysPanel.isVisible());
+            numPadPanel.setVisible(!numPadPanel.isVisible());
 
-            if (isWindows) {
-                keyLabelRightStart.setVisible(!keyLabelRightStart.isVisible()); // If a Right Start/Windows Key exists, it usually only exists on full keyboard layouts (and it will only be detected on Windows since Linux doesn't differentiate between Left and Right Start/Windows Keys).
+            if (isMacOS) {
+                otherKeysPanel.setVisible(!otherKeysPanel.isVisible());
+                keyLabelRightControl.setVisible(!keyLabelRightControl.isVisible()); // On Mac keyboards, Right Control Key is only shown on full keyboard layouts.
+            } else {
+                topOtherKeysPanel.setVisible(!topOtherKeysPanel.isVisible());
+
+                if (isWindows) {
+                    keyLabelRightStart.setVisible(!keyLabelRightStart.isVisible()); // If a Right Start/Windows Key exists, it usually only exists on full keyboard layouts (and it will only be detected on Windows since Linux doesn't differentiate between Left and Right Start/Windows Keys).
+                }
             }
-        }
 
-        if (!fullKeyboardHasBeenShown && numPadPanel.isVisible()) {
-            fullKeyboardHasBeenShown = true;
-        }
+            if (!fullKeyboardHasBeenShown && numPadPanel.isVisible()) {
+                fullKeyboardHasBeenShown = true;
+            }
 
-        pack();
-        setLocationRelativeTo(null);
-        textArea.requestFocusInWindow();
+            setMinimumSize(null); // Clear minimum and preferred sizes so pack can go smaller than current size if size was reduced to fit screen.
+            setPreferredSize(null);
+
+            pack();
+            textArea.requestFocusInWindow();
+
+            // The following code to set the max window size based on the screen size is based on code from QA Helper (Copyright Free Geek - MIT License): https://github.com/freegeek-pdx/Java-QA-Helper/blob/b511d0259a657d1eebd4224a0950094f03d48156/src/GUI/QAHelper.java#L3221-L3287
+            // setMaximumSize does not work. But do not want the windows to get larger than the screen.
+            // The window contents are within a scroll pane, so if we set the window size to the screen size, the contents can still be scrolled.
+            Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
+            Insets screenInsets = Toolkit.getDefaultToolkit().getScreenInsets(getGraphicsConfiguration());
+            screenSize.height -= screenInsets.top + screenInsets.bottom;
+            screenSize.width -= screenInsets.left + screenInsets.right;
+
+            Dimension windowSize = getSize();
+            Dimension reducedWindowSize = getSize();
+
+            int scrollbarWidth = (isMacOS ? 12 : 10);
+            if (UIManager.get("ScrollBar.width") != null) {
+                scrollbarWidth = (int) UIManager.get("ScrollBar.width");
+            }
+
+            boolean didReduceWidth = false;
+            if (windowSize.width > screenSize.width) {
+                reducedWindowSize.width = screenSize.width;
+                didReduceWidth = true;
+
+                // If reduced width, add the height of the scrollbar to the window to not
+                // need to also scroll vertically since the scrollbar would block content.
+                reducedWindowSize.height += UIScale.scale(scrollbarWidth);
+
+                if (reducedWindowSize.height > screenSize.height) {
+                    reducedWindowSize.height = screenSize.height;
+                }
+            }
+
+            if (windowSize.height > screenSize.height) {
+                reducedWindowSize.height = screenSize.height;
+
+                if (!didReduceWidth) {
+                    // If reduced height, add the width of the scrollbar to the window to not
+                    // need to also scroll horizonally since the scrollbar would block content.
+                    reducedWindowSize.width += UIScale.scale(scrollbarWidth);
+
+                    if (reducedWindowSize.width > screenSize.width) {
+                        reducedWindowSize.width = screenSize.width;
+                    }
+                }
+            }
+
+            if (!reducedWindowSize.equals(windowSize)) {
+                setMinimumSize(reducedWindowSize);
+                setPreferredSize(reducedWindowSize);
+                setSize(reducedWindowSize);
+                textArea.requestFocusInWindow();
+
+                // Wait up to 1/2 second in the background before re-centering because setSize() may not happen immediately.
+                (new SwingWorker<Void, Void>() {
+                    @Override
+                    protected Void doInBackground() throws Exception {
+                        for (int waitForSetSize = 0; waitForSetSize < 50; waitForSetSize++) {
+                            if (!windowSize.equals(getSize())) {
+                                break;
+                            }
+
+                            TimeUnit.MILLISECONDS.sleep(10);
+                        }
+                        return null;
+                    }
+
+                    @Override
+                    protected void done() {
+                        setLocationRelativeTo(null);
+                        textArea.requestFocusInWindow();
+                        isTogglingFullKeyboard = false;
+                    }
+                }).execute();
+            } else {
+                setLocationRelativeTo(null);
+                textArea.requestFocusInWindow();
+                isTogglingFullKeyboard = false;
+            }
+        } else {
+            Toolkit.getDefaultToolkit().beep();
+        }
     }//GEN-LAST:event_toggleFullKeyboardMenuItemActionPerformed
+
+    private void setUIScale(int newUIScalePercentage) {
+        if ((newUIScalePercentage >= 50) && (newUIScalePercentage <= 200)) {
+            if (!launchPath.isEmpty() && new File(launchPath).exists() && ((isMacOS && launchPath.endsWith(".app")) || (!javaPath.isEmpty() && new File(javaPath).exists() && new File(javaPath).canExecute()))) {
+                mainMenuBar.removeAll();
+                contentPane.removeAll();
+                contentPane.setLayout(new FlowLayout(FlowLayout.CENTER, UIScale.scale(60), UIScale.scale(30)));
+                contentPane.add(new JLabel("<html><b>Relaunching <i>Keyboard Test</i> to Scale UI to " + newUIScalePercentage + "%</b></html>"));
+                contentPane.revalidate();
+                contentPane.repaint();
+                setMinimumSize(null); // Clear minimum and preferred sizes so pack can go smaller than current size if size was reduced to fit screen.
+                setPreferredSize(null);
+                pack();
+                setLocationRelativeTo(null);
+
+                JFrame keyboardTestWindow = this;
+
+                (new SwingWorker<Void, Void>() {
+                    @Override
+                    protected Void doInBackground() throws Exception {
+                        TimeUnit.MILLISECONDS.sleep(100); // Add a little delay so that the window has time to update to show the "Relaunching" message set above.
+
+                        return null;
+                    }
+
+                    @Override
+                    protected void done() {
+                        if (isMacOS && launchPath.endsWith(".app")) {
+                            // The following code to relaunch Mac app is based on code from QA Helper (Copyright Free Geek - MIT License): https://github.com/freegeek-pdx/Java-QA-Helper/blob/b511d0259a657d1eebd4224a0950094f03d48156/src/GUI/QAHelper.java#L1715-L1719 & https://github.com/freegeek-pdx/Java-QA-Helper/blob/b511d0259a657d1eebd4224a0950094f03d48156/src/GUI/QAHelper.java#L1834-L1835
+
+                            try {
+                                Runtime.getRuntime().exec(new String[]{"/usr/bin/osascript",
+                                    "-e", "use scripting additions",
+                                    "-e", "set appPath to \"" + launchPath.replace("\\", "\\\\").replace("\"", "\\\"") + "\"",
+                                    "-e", "delay 0.5",
+                                    "-e", "repeat while (application appPath is running)",
+                                    "-e", "delay 0.5",
+                                    "-e", "end repeat",
+                                    "-e", "try",
+                                    "-e", "do shell script \"/usr/bin/open -na \" & (quoted form of appPath) & \" --args '" + newUIScalePercentage + "%'\"",
+                                    "-e", "end try"});
+                            } catch (IOException relaunchKeyboardTestMacAppException) {
+                                if (debugLogging) {
+                                    System.out.println("relaunchKeyboardTestMacAppException: " + relaunchKeyboardTestMacAppException);
+                                }
+                            }
+                        } else {
+                            // The following code to relaunch jar is based on code from QA Helper (Copyright Free Geek - MIT License): https://github.com/freegeek-pdx/Java-QA-Helper/blob/b511d0259a657d1eebd4224a0950094f03d48156/src/GUI/QAHelper.java#L1553-L1599
+
+                            if (isWindows) {
+                                File windowsKeyboardTestRelauncherFile = new File(System.getProperty("java.io.tmpdir"), "Keyboard_Test-Relauncher.cmd");
+
+                                try (BufferedWriter bufferedWriter = new BufferedWriter(new FileWriter(windowsKeyboardTestRelauncherFile))) {
+                                    bufferedWriter.write(
+                                            "@ECHO OFF" + "\n"
+                                            + "\n"
+                                            + ":WaitForQuit" + "\n"
+                                            + "\\Windows\\System32\\timeout.exe /t 1 /nobreak >NUL" + "\n"
+                                            + "\\Windows\\System32\\tasklist.exe /nh /fi \"WINDOWTITLE eq Keyboard Test\" | \\Windows\\System32\\find.exe \"No tasks are running\" >NUL" + "\n"
+                                            + "IF ERRORLEVEL 1 (" + "\n"
+                                            + "\t" + "\\Windows\\System32\\taskkill.exe /fi \"WINDOWTITLE eq Keyboard Test\" >NUL" + "\n"
+                                            + "\t" + "GOTO WaitForQuit" + "\n"
+                                            + ")" + "\n"
+                                            + "\n"
+                                            + "START \"Keyboard Test Relauncher\" \"" + javaPath + "\" -jar \"" + launchPath + "\" \"" + newUIScalePercentage + "%%\"" + "\n" // In batch script, the percent sign needs to be doubled to escape it to a literal percent sign character.
+                                            + "\n"
+                                            + "EXIT 0"
+                                            + "\n"
+                                    );
+                                } catch (IOException writeWindowsKeyboardTestRelauncherFileException) {
+                                    if (debugLogging) {
+                                        System.out.println("writeWindowsKeyboardTestRelauncherFileException: " + writeWindowsKeyboardTestRelauncherFileException);
+                                    }
+                                }
+
+                                if (windowsKeyboardTestRelauncherFile.exists()) {
+                                    try {
+                                        // Need to create a CMD file and launch it with Start-Process so it doesn't get killed when Keyboard Test quits
+                                        Runtime.getRuntime().exec(new String[]{"\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", "Start-Process -WindowStyle Hidden '" + windowsKeyboardTestRelauncherFile.getPath() + "'"}).waitFor();
+                                    } catch (IOException | InterruptedException launchWindowsKeyboardTestRelauncherException) {
+                                        if (debugLogging) {
+                                            System.out.println("launchWindowsKeyboardTestRelauncherException: " + launchWindowsKeyboardTestRelauncherException);
+                                        }
+                                    }
+                                } else {
+                                    Toolkit.getDefaultToolkit().beep();
+                                    JOptionPane.showMessageDialog(keyboardTestWindow, "<html><b>Error Relaunching <i>Keyboard Test</i></b><br/><br/><i>Failed to create relaunch command file.</i></html>", "Scale Keyboard Test UI Error", JOptionPane.ERROR_MESSAGE);
+                                }
+                            } else {
+                                try {
+                                    Runtime.getRuntime().exec(new String[]{"/bin/bash", "-c", "/bin/sleep 0.5; while [[ \"$(/usr/bin/pgrep -fl 'Keyboard_Test.*\\.jar')\" == *java* ]]; do " + (isLinux ? "/usr/bin/wmctrl -Fc 'Keyboard Test'; " : "") + "/bin/sleep 0.5; done; '" + javaPath.replace("'", "'\\''") + "' -jar '" + launchPath.replace("'", "'\\''") + "' '" + newUIScalePercentage + "%' & disown"});
+                                } catch (IOException relaunchKeyboardTestJarException) {
+                                    if (debugLogging) {
+                                        System.out.println("relaunchKeyboardTestJarException: " + relaunchKeyboardTestJarException);
+                                    }
+                                }
+                            }
+                        }
+
+                        System.exit(0);
+                    }
+                }).execute();
+            } else {
+                Toolkit.getDefaultToolkit().beep();
+                JOptionPane.showMessageDialog(this, "<html><b>Failed to Determine <i>Keyboard Test</i> Launch Path</b><br/><br/>Cannot scale <i>Keyboard Test</i> UI without being able to relaunch app.</html>", "Scale Keyboard Test UI Error", JOptionPane.ERROR_MESSAGE);
+            }
+        } else {
+            Toolkit.getDefaultToolkit().beep();
+        }
+    }
+
+    private void resetUIScaleMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_resetUIScaleMenuItemActionPerformed
+        int uiScalePercentage = 100;
+        if (System.getProperty("KeyboardTest.uiScalePercentage") != null) {
+            uiScalePercentage = Integer.parseInt(System.getProperty("KeyboardTest.uiScalePercentage"));
+        }
+
+        if (uiScalePercentage != 100) {
+            setUIScale(100);
+        } else {
+            Toolkit.getDefaultToolkit().beep();
+        }
+    }//GEN-LAST:event_resetUIScaleMenuItemActionPerformed
+
+    private void increaseUIScaleMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_increaseUIScaleMenuItemActionPerformed
+        int uiScalePercentage = 100;
+        if (System.getProperty("KeyboardTest.uiScalePercentage") != null) {
+            uiScalePercentage = Integer.parseInt(System.getProperty("KeyboardTest.uiScalePercentage"));
+        }
+
+        if (uiScalePercentage < 200) {
+            int newUIScalePercentage = (uiScalePercentage + 25);
+            if (newUIScalePercentage > 200) {
+                newUIScalePercentage = 200;
+            }
+
+            setUIScale(newUIScalePercentage);
+        } else {
+            Toolkit.getDefaultToolkit().beep();
+        }
+    }//GEN-LAST:event_increaseUIScaleMenuItemActionPerformed
+
+    private void decreaseUIScaleMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_decreaseUIScaleMenuItemActionPerformed
+        int uiScalePercentage = 100;
+        if (System.getProperty("KeyboardTest.uiScalePercentage") != null) {
+            uiScalePercentage = Integer.parseInt(System.getProperty("KeyboardTest.uiScalePercentage"));
+        }
+
+        if (uiScalePercentage > 50) {
+            int newUIScalePercentage = (uiScalePercentage - 25);
+            if (newUIScalePercentage < 50) {
+                newUIScalePercentage = 50;
+            }
+
+            setUIScale(newUIScalePercentage);
+        } else {
+            Toolkit.getDefaultToolkit().beep();
+        }
+    }//GEN-LAST:event_decreaseUIScaleMenuItemActionPerformed
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JPanel arrowKeysAlignmentSpacer;
     private javax.swing.JPanel arrowKeysPanel;
     private javax.swing.JPanel contentPane;
     private javax.swing.JScrollPane contentScrollPane;
+    private javax.swing.JMenuItem decreaseUIScaleMenuItem;
     private javax.swing.JMenu editMenu;
+    private javax.swing.JMenuItem increaseUIScaleMenuItem;
     private javax.swing.JLabel keyLabel0;
     private javax.swing.JLabel keyLabel1;
     private javax.swing.JLabel keyLabel2;
@@ -2935,10 +3408,12 @@ public class KeyboardTest extends javax.swing.JFrame {
     private javax.swing.JPanel numPadPanel;
     private javax.swing.JPanel otherKeysPanel;
     private javax.swing.JMenuItem resetPressedKeysMenuItem;
+    private javax.swing.JMenuItem resetUIScaleMenuItem;
     private javax.swing.JTextArea textArea;
     private javax.swing.JScrollPane textAreaScrollPane;
     private javax.swing.JMenuItem toggleFullKeyboardMenuItem;
     private javax.swing.JPanel topOtherKeysAndLastKeyPressedPanel;
     private javax.swing.JPanel topOtherKeysPanel;
+    private javax.swing.JMenu uiScaleMenu;
     // End of variables declaration//GEN-END:variables
 }

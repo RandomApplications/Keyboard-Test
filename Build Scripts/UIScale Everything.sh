@@ -65,6 +65,10 @@ if grep 'Dimension(100, 130)' './'*'.java'; then
 	sed -i '' 's/Dimension(100, 130)/Dimension(UIScale.scale(100), UIScale.scale(130))/' './'*'.java'
 fi
 
+# if grep 'Insets(6, 6, 6, 6)' './'*'.java'; then # The textArea inset margins actually look better at large scales WITHOUT also scaling the insets.
+# 	sed -i '' 's/Insets(6, 6, 6, 6)/Insets(UIScale.scale(6), UIScale.scale(6), UIScale.scale(6), UIScale.scale(6))/' './'*'.java'
+# fi
+
 if grep 'addGap(18, 18, 18)' './'*'.java'; then
 	sed -i '' 's/addGap(18, 18, 18)/addGap(UIScale.scale(18), UIScale.scale(18), UIScale.scale(18))/' './'*'.java'
 fi

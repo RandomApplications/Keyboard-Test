@@ -45,7 +45,7 @@ if [[ "$(uname)" == 'Darwin' ]]; then # Can only compile macOS app when running 
 		exit 2
 	fi
 
-	keyboard_test_mac_zip_name='Keyboard-Test.zip'
+	keyboard_test_mac_zip_name='KeyboardTest.zip'
 
 	keyboard_test_app_id='org.freegeek.Keyboard-Test'
 
@@ -77,6 +77,10 @@ if [[ "$(uname)" == 'Darwin' ]]; then # Can only compile macOS app when running 
 
 	app_version="$(unzip -p "${PROJECT_PATH}/dist/JAR for macOS/Keyboard_Test.jar" '*/keyboard-test-version.txt' | head -1)"
 	app_version_for_jpackage=${app_version%-*} # jpackage version strings can consist of only numbers and up to two dots.
+
+	if [[ -f "${PROJECT_PATH}/dist/KeyboardTest-jar.zip" ]]; then # Doesn't have to do with compiling the Mac app, but rename "KeyboardTest-jar.zip" to include the version here just because it's a convenient spot to do it.
+		mv -f "${PROJECT_PATH}/dist/KeyboardTest-jar.zip" "${PROJECT_PATH}/dist/KeyboardTest-jar-${app_version}.zip"
+	fi
 
 	echo -e "\nBuilding Keyboard Test Version ${app_version}..."
 
