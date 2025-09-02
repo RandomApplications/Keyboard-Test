@@ -45,7 +45,7 @@ if [[ "$(uname)" == 'Darwin' ]]; then # Can only compile macOS app when running 
 		exit 2
 	fi
 
-	keyboard_test_mac_zip_name='KeyboardTest.zip'
+	keyboard_test_mac_zip_name='Keyboard-Test.zip'
 
 	keyboard_test_app_id='org.freegeek.Keyboard-Test'
 
@@ -79,7 +79,9 @@ if [[ "$(uname)" == 'Darwin' ]]; then # Can only compile macOS app when running 
 	app_version_for_jpackage=${app_version%-*} # jpackage version strings can consist of only numbers and up to two dots.
 
 	if [[ -f "${PROJECT_PATH}/dist/KeyboardTest-jar.zip" ]]; then # Doesn't have to do with compiling the Mac app, but rename "KeyboardTest-jar.zip" to include the version here just because it's a convenient spot to do it.
-		mv -f "${PROJECT_PATH}/dist/KeyboardTest-jar.zip" "${PROJECT_PATH}/dist/KeyboardTest-jar-${app_version}.zip"
+		keyboard_test_jar_zip_name_with_version="KeyboardTest-jar-${app_version}.zip"
+		rm -f "${PROJECT_PATH}/dist/${keyboard_test_jar_zip_name_with_version}"
+		mv -f "${PROJECT_PATH}/dist/KeyboardTest-jar.zip" "${PROJECT_PATH}/dist/${keyboard_test_jar_zip_name_with_version}"
 	fi
 
 	echo -e "\nBuilding Keyboard Test Version ${app_version}..."
@@ -105,6 +107,10 @@ if [[ "$(uname)" == 'Darwin' ]]; then # Can only compile macOS app when running 
 	rm -rf "${PROJECT_PATH}/dist/jlink-jre"
 
 	plutil -replace 'CFBundleShortVersionString' -string "${app_version}" "${PROJECT_PATH}/dist/Keyboard Test.app/Contents/Info.plist"
+
+	if [[ -f "${PROJECT_PATH}/macOS Build Resources/Assets.car" ]]; then
+		ditto "${PROJECT_PATH}/macOS Build Resources/Assets.car" "${PROJECT_PATH}/dist/Keyboard Test.app/Contents/Resources/Assets.car"
+	fi
 
 	# Move "Keyboard Test.app/Contents/runtime" folder to "Keyboard Test.app/Contents/Frameworks/Java.runtime" (jpackager and OpenJDK 11 used "PlugIns" folder),
 	# so that Notarization doesn't fail with "The signature of the binary is invalid" error. See links below for references:
@@ -333,7 +339,7 @@ if [[ "$(uname)" == 'Darwin' ]]; then # Can only compile macOS app when running 
 			fi
 		fi
 
-		keyboard_test_mac_zip_name_with_version="${keyboard_test_mac_zip_name/.zip/-mac-${app_version}.zip}"
+		keyboard_test_mac_zip_name_with_version="KeyboardTest-mac-${app_version}.zip"
 		rm -f "${PROJECT_PATH}/dist/${keyboard_test_mac_zip_name_with_version}"
 		mv -f "${PROJECT_PATH}/dist/${keyboard_test_mac_zip_name}" "${PROJECT_PATH}/dist/${keyboard_test_mac_zip_name_with_version}"
 

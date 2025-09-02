@@ -13,7 +13,7 @@
 # Mobile Tools for Java (J2ME)
 .mtj.tmp/
 
-# Package Files #
+# Package Files
 *.jar
 *.war
 *.nar
@@ -30,8 +30,10 @@ nbproject/private/
 
 # Ignore file types in any location:
 *.icns
+*.png
+*.car
 
 # Ignore specific project folder:
 Universal Binary Parts/
+Keyboard Test Icon/
 Licenses/
-Twemoji/

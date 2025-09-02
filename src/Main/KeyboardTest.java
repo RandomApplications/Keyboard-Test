@@ -18,7 +18,8 @@
  */
 
  /*
- * App Icon is “Keyboard” from Twemoji (https://github.com/twitter/twemoji) by Twitter (https://twitter.com)
+ * App Icon is a combination of “Keyboard” and “Index Pointing Up”
+ * from Twemoji (https://github.com/twitter/twemoji) by Twitter (https://twitter.com)
  * Licensed under CC-BY 4.0 (https://creativecommons.org/licenses/by/4.0/)
  */
 package Main;
@@ -30,11 +31,12 @@ import java.awt.Desktop;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
-import java.awt.Image;
 import java.awt.Insets;
 import java.awt.Taskbar;
 import java.awt.Toolkit;
 import java.awt.desktop.AboutEvent;
+import java.awt.event.ActionEvent;
+import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -44,28 +46,32 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.net.URL;
 import java.time.Year;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import javax.imageio.ImageIO;
+import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
+import javax.swing.JDialog;
+import javax.swing.JEditorPane;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
+import javax.swing.JScrollPane;
+import javax.swing.KeyStroke;
 import javax.swing.SwingWorker;
 import javax.swing.UIManager;
 import javax.swing.UnsupportedLookAndFeelException;
 import javax.swing.border.Border;
+import javax.swing.event.HyperlinkEvent;
 import javax.swing.text.StyleContext;
 
 /**
  *
- * @author 2020: Rajnish Mishra, 2024: Pico Mitchell (of Free Geek).
+ * @author 2020: Rajnish Mishra, 2024-2025: Pico Mitchell (of Free Geek).
  */
 public class KeyboardTest extends javax.swing.JFrame {
 
@@ -89,6 +95,10 @@ public class KeyboardTest extends javax.swing.JFrame {
     private Border keyLabelGreenHighlightBorder;
     private Color keyLabelGreenHighlightBackgroundColor;
 
+    private JDialog creditsDialog;
+    private JEditorPane creditsDialogEditorPane;
+    private JScrollPane creditsDialogScrollPane;
+
     /**
      * @param args the command line arguments
      */
@@ -106,7 +116,7 @@ public class KeyboardTest extends javax.swing.JFrame {
 
         try {
             if (!new File(KeyboardTest.class.getProtectionDomain().getCodeSource().getLocation().toURI()).getPath().endsWith(".app/Contents/app/Keyboard_Test.jar")) {
-                Taskbar.getTaskbar().setIconImage(ImageIO.read(KeyboardTest.class.getResource("/Resources/Twemoji/Keyboard1024.png"))); // For macOS Dock when run as JAR (not as compiled app bundle since it would override the ICNS file): https://stackoverflow.com/a/56924202
+                Taskbar.getTaskbar().setIconImage(ImageIO.read(KeyboardTest.class.getResource("/Resources/Images/KeyboardTest1024.png"))); // For macOS Dock when run as JAR (not as compiled app bundle since it would override the actual app icon): https://stackoverflow.com/a/56924202
             }
         } catch (URISyntaxException | IllegalArgumentException | IOException | UnsupportedOperationException | SecurityException setTaskbarImageIconException) {
             // Ignore setTaskbarImageIconException
@@ -265,24 +275,7 @@ public class KeyboardTest extends javax.swing.JFrame {
      * Creates new form KeyboardTest
      */
     public KeyboardTest() {
-        List<Image> imageList = new ArrayList<>();
-        String[] everyImageSize = new String[]{"16", "24", "32", "48", "64", "96", "128"};
-
-        for (String thisImageSize : everyImageSize) {
-            URL thisEmojiURL = this.getClass().getResource("/Resources/Twemoji/Keyboard" + thisImageSize + ".png");
-
-            if (thisEmojiURL != null) {
-                try {
-                    imageList.add(ImageIO.read(thisEmojiURL));
-                } catch (IOException loadIconImagesException) {
-                    if (debugLogging) {
-                        System.out.println("loadIconImagesException: " + loadIconImagesException);
-                    }
-                }
-            }
-        }
-
-        setIconImages(imageList);
+        setIconImages(new ScaledImage("AppIcon", this).toImageList());
 
         initComponents();
 
@@ -436,54 +429,49 @@ public class KeyboardTest extends javax.swing.JFrame {
         if (osName.startsWith("Mac OS X") || osName.startsWith("macOS")) {
             isMacOS = true;
 
-            try (BufferedReader commandReader = new BufferedReader(new InputStreamReader(Runtime.getRuntime().exec(new String[]{"/usr/sbin/system_profiler", "SPHardwareDataType"}).getInputStream()))) {
-                String commandOutput = commandReader.lines().collect(Collectors.joining("\n"));
-
-                if (debugLogging) {
-                    System.out.println("commandOutput:\n" + commandOutput);
-                }
-
-                isMacLaptop = commandOutput.contains("Book");
-                if (debugLogging) {
-                    System.out.println("isMacLaptop: " + isMacLaptop);
-                }
-            } catch (Exception getIsMacLaptopException) {
-                if (debugLogging) {
-                    System.out.println("getIsMacLaptopException: " + getIsMacLaptopException);
-                }
-            }
-
             Desktop.getDesktop().setAboutHandler((AboutEvent aboutEvent) -> {
-                String appVersion = "UNKNOWN VERSION";
-                try (BufferedReader appVersionReader = new BufferedReader(new InputStreamReader(this.getClass().getResource("/Resources/keyboard-test-version.txt").openStream()))) {
-                    appVersion = appVersionReader.readLine();
-                    if (appVersion == null) {
-                        appVersion = "VERSION ERROR";
-                    }
-
-                    if (debugLogging) {
-                        System.out.println("appVersion: " + appVersion);
-                    }
-                } catch (Exception getAppVersionException) {
-                    if (debugLogging) {
-                        System.out.println("getAppVersionException: " + getAppVersionException);
-                    }
-                }
-
-                JOptionPane.showMessageDialog(this, "<html>"
-                        + "<b>Keyboard Test</b> <i>(MIT License)</i><br/>"
-                        + "Copyright &copy; 2020 Rajnish Mishra<br/>"
-                        + "Copyright &copy; 2024-" + Year.now().toString() + " Free Geek"
-                        + "<br/><br/>"
-                        + "<b>Version:</b> " + appVersion + " (<b>Java:</b> " + System.getProperty("java.version") + ")"
-                        + "<br/><br/>"
-                        + "<b>App Icon:</b> <i>Keyboard</i> from <i>Twemoji</i> licensed under <i>CC-BY 4.0</i>&nbsp;<br/>"
-                        + "Copyright &copy; 2021 Twitter, Inc and other contributors"
-                        + "<br/><br/>"
-                        + "<b>UI Theme:</b> <i>FlatLaf</i> licensed under the <i>Apache 2.0 License</i>&nbsp;<br/>"
-                        + "Copyright &copy; 2025 FormDev Software GmbH. All rights reserved."
-                        + "</html>", "About Keyboard Test", JOptionPane.INFORMATION_MESSAGE);
+                showCreditsMenuItemActionPerformed(null);
             });
+
+            // On macOS, switch menu shortcuts from CTRL_DOWN_MASK to META_DOWN_MASK.
+            resetPressedKeysMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_R, InputEvent.META_DOWN_MASK));
+            toggleFullKeyboardMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_T, InputEvent.META_DOWN_MASK));
+            resetUIScaleMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_0, InputEvent.META_DOWN_MASK));
+            increaseUIScaleMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_EQUALS, InputEvent.META_DOWN_MASK));
+            decreaseUIScaleMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_MINUS, InputEvent.META_DOWN_MASK));
+
+            (new SwingWorker<Void, Void>() {
+                @Override
+                protected Void doInBackground() throws Exception { // Load "system_profiler SPHardwareDataType" in the background to not add any delay to the window opening after launch and because it's ok if "isMacLaptop" isn't set immediately.
+                    if (debugLogging) {
+                        System.out.println("system_profiler SPHardwareDataType:");
+                    }
+
+                    try (BufferedReader commandReader = new BufferedReader(new InputStreamReader(Runtime.getRuntime().exec(new String[]{"/usr/sbin/system_profiler", "SPHardwareDataType"}).getInputStream()))) {
+                        String thisLine;
+                        while ((thisLine = commandReader.readLine()) != null) {
+                            if (debugLogging) {
+                                System.out.println(thisLine);
+                            }
+
+                            if (thisLine.contains("Model Name:")) {
+                                isMacLaptop = thisLine.contains("Book");
+                                break;
+                            }
+                        }
+
+                        if (debugLogging) {
+                            System.out.println("isMacLaptop: " + isMacLaptop);
+                        }
+                    } catch (Exception getIsMacLaptopException) {
+                        if (debugLogging) {
+                            System.out.println("getIsMacLaptopException: " + getIsMacLaptopException);
+                        }
+                    }
+
+                    return null;
+                }
+            }).execute();
 
             keyLabelBackspace.setText("delete");
             keyLabelEnter.setText("return");
@@ -789,9 +777,11 @@ public class KeyboardTest extends javax.swing.JFrame {
         keyLabelNumPad0 = new javax.swing.JLabel();
         keyLabelNumPadDecimal = new javax.swing.JLabel();
         mainMenuBar = new javax.swing.JMenuBar();
-        editMenu = new javax.swing.JMenu();
+        optionsMenu = new javax.swing.JMenu();
         resetPressedKeysMenuItem = new javax.swing.JMenuItem();
         toggleFullKeyboardMenuItem = new javax.swing.JMenuItem();
+        optionsMenuSeparator = new javax.swing.JPopupMenu.Separator();
+        showCreditsMenuItem = new javax.swing.JMenuItem();
         uiScaleMenu = new javax.swing.JMenu();
         resetUIScaleMenuItem = new javax.swing.JMenuItem();
         increaseUIScaleMenuItem = new javax.swing.JMenuItem();
@@ -835,7 +825,6 @@ public class KeyboardTest extends javax.swing.JFrame {
         keyLabelEscape.setHorizontalAlignment(javax.swing.SwingConstants.CENTER);
         keyLabelEscape.setText("Esc");
         keyLabelEscape.setBorder(javax.swing.BorderFactory.createLineBorder(new java.awt.Color(153, 153, 153), UIScale.scale(2)));
-        keyLabelEscape.setMaximumSize(new java.awt.Dimension(UIScale.scale(40), UIScale.scale(40)));
         keyLabelEscape.setMinimumSize(new java.awt.Dimension(UIScale.scale(40), UIScale.scale(40)));
         keyLabelEscape.setOpaque(true);
         keyLabelEscape.setPreferredSize(new java.awt.Dimension(UIScale.scale(40), UIScale.scale(40)));
@@ -1121,7 +1110,6 @@ public class KeyboardTest extends javax.swing.JFrame {
         keyLabelBackspace.setHorizontalAlignment(javax.swing.SwingConstants.CENTER);
         keyLabelBackspace.setText("Backspace");
         keyLabelBackspace.setBorder(javax.swing.BorderFactory.createLineBorder(new java.awt.Color(153, 153, 153), UIScale.scale(2)));
-        keyLabelBackspace.setMaximumSize(new java.awt.Dimension(UIScale.scale(40), UIScale.scale(40)));
         keyLabelBackspace.setMinimumSize(new java.awt.Dimension(UIScale.scale(40), UIScale.scale(40)));
         keyLabelBackspace.setOpaque(true);
         keyLabelBackspace.setPreferredSize(new java.awt.Dimension(UIScale.scale(40), UIScale.scale(40)));
@@ -1132,7 +1120,6 @@ public class KeyboardTest extends javax.swing.JFrame {
         keyLabelTab.setHorizontalAlignment(javax.swing.SwingConstants.CENTER);
         keyLabelTab.setText("Tab");
         keyLabelTab.setBorder(javax.swing.BorderFactory.createLineBorder(new java.awt.Color(153, 153, 153), UIScale.scale(2)));
-        keyLabelTab.setMaximumSize(new java.awt.Dimension(UIScale.scale(40), UIScale.scale(40)));
         keyLabelTab.setMinimumSize(new java.awt.Dimension(UIScale.scale(40), UIScale.scale(40)));
         keyLabelTab.setOpaque(true);
         keyLabelTab.setPreferredSize(new java.awt.Dimension(UIScale.scale(40), UIScale.scale(40)));
@@ -1286,7 +1273,6 @@ public class KeyboardTest extends javax.swing.JFrame {
             keyLabelCapsLock.setHorizontalAlignment(javax.swing.SwingConstants.CENTER);
             keyLabelCapsLock.setText("Caps Lock");
             keyLabelCapsLock.setBorder(javax.swing.BorderFactory.createLineBorder(new java.awt.Color(153, 153, 153), UIScale.scale(2)));
-            keyLabelCapsLock.setMaximumSize(new java.awt.Dimension(UIScale.scale(40), UIScale.scale(40)));
             keyLabelCapsLock.setMinimumSize(new java.awt.Dimension(UIScale.scale(40), UIScale.scale(40)));
             keyLabelCapsLock.setOpaque(true);
             keyLabelCapsLock.setPreferredSize(new java.awt.Dimension(UIScale.scale(40), UIScale.scale(40)));
@@ -1418,7 +1404,6 @@ public class KeyboardTest extends javax.swing.JFrame {
             keyLabelEnter.setHorizontalAlignment(javax.swing.SwingConstants.CENTER);
             keyLabelEnter.setText("Enter");
             keyLabelEnter.setBorder(javax.swing.BorderFactory.createLineBorder(new java.awt.Color(153, 153, 153), UIScale.scale(2)));
-            keyLabelEnter.setMaximumSize(new java.awt.Dimension(UIScale.scale(40), UIScale.scale(40)));
             keyLabelEnter.setMinimumSize(new java.awt.Dimension(UIScale.scale(40), UIScale.scale(40)));
             keyLabelEnter.setOpaque(true);
             keyLabelEnter.setPreferredSize(new java.awt.Dimension(UIScale.scale(40), UIScale.scale(40)));
@@ -1429,10 +1414,9 @@ public class KeyboardTest extends javax.swing.JFrame {
             keyLabelLeftShift.setHorizontalAlignment(javax.swing.SwingConstants.CENTER);
             keyLabelLeftShift.setText("Shift");
             keyLabelLeftShift.setBorder(javax.swing.BorderFactory.createLineBorder(new java.awt.Color(153, 153, 153), UIScale.scale(2)));
-            keyLabelLeftShift.setMaximumSize(new java.awt.Dimension(UIScale.scale(40), UIScale.scale(40)));
             keyLabelLeftShift.setMinimumSize(new java.awt.Dimension(UIScale.scale(40), UIScale.scale(40)));
             keyLabelLeftShift.setOpaque(true);
-            keyLabelLeftShift.setPreferredSize(new java.awt.Dimension(UIScale.scale(40), UIScale.scale(40)));
+            keyLabelLeftShift.setPreferredSize(new java.awt.Dimension(UIScale.scale(107), UIScale.scale(40)));
 
             keyLabelZ.setBackground(java.awt.Color.white);
             keyLabelZ.setFont(new java.awt.Font("Helvetica", 0, UIScale.scale(13))); // NOI18N
@@ -1550,7 +1534,6 @@ public class KeyboardTest extends javax.swing.JFrame {
             keyLabelRightShift.setHorizontalAlignment(javax.swing.SwingConstants.CENTER);
             keyLabelRightShift.setText("Shift");
             keyLabelRightShift.setBorder(javax.swing.BorderFactory.createLineBorder(new java.awt.Color(153, 153, 153), UIScale.scale(2)));
-            keyLabelRightShift.setMaximumSize(new java.awt.Dimension(UIScale.scale(40), UIScale.scale(40)));
             keyLabelRightShift.setMinimumSize(new java.awt.Dimension(UIScale.scale(40), UIScale.scale(40)));
             keyLabelRightShift.setOpaque(true);
             keyLabelRightShift.setPreferredSize(new java.awt.Dimension(UIScale.scale(40), UIScale.scale(40)));
@@ -1777,72 +1760,67 @@ public class KeyboardTest extends javax.swing.JFrame {
                             .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                             .addComponent(keyLabelBackSlash, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
                         .addGroup(mainKeysPanelLayout.createSequentialGroup()
-                            .addGap(0, 0, Short.MAX_VALUE)
-                            .addGroup(mainKeysPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING)
-                                .addGroup(mainKeysPanelLayout.createSequentialGroup()
-                                    .addComponent(keyLabelLeftShift, javax.swing.GroupLayout.DEFAULT_SIZE, UIScale.scale(107), Short.MAX_VALUE)
-                                    .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                                    .addComponent(keyLabelZ, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                                    .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                                    .addComponent(keyLabelX, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                                    .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                                    .addComponent(keyLabelC, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                                    .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                                    .addComponent(keyLabelV, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                                    .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                                    .addComponent(keyLabelB, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                                    .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                                    .addComponent(keyLabelN, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                                    .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                                    .addComponent(keyLabelM, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                                    .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                                    .addComponent(keyLabelComma, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                                    .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                                    .addComponent(keyLabelPeriod, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                                    .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                                    .addComponent(keyLabelSlash, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                                    .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                                    .addComponent(keyLabelRightShift, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
-                                .addGroup(mainKeysPanelLayout.createSequentialGroup()
-                                    .addComponent(keyLabelCapsLock, javax.swing.GroupLayout.DEFAULT_SIZE, UIScale.scale(84), Short.MAX_VALUE)
-                                    .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                                    .addComponent(keyLabelA, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                                    .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                                    .addComponent(keyLabelS, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                                    .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                                    .addComponent(keyLabelD, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                                    .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                                    .addComponent(keyLabelF, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                                    .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                                    .addComponent(keyLabelG, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                                    .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                                    .addComponent(keyLabelH, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                                    .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                                    .addComponent(keyLabelJ, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                                    .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                                    .addComponent(keyLabelK, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                                    .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                                    .addComponent(keyLabelL, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                                    .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                                    .addComponent(keyLabelSemicolon, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                                    .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                                    .addComponent(keyLabelQuote, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                                    .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                                    .addComponent(keyLabelEnter, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)))))
+                            .addComponent(keyLabelLeftShift, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                            .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                            .addComponent(keyLabelZ, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                            .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                            .addComponent(keyLabelX, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                            .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                            .addComponent(keyLabelC, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                            .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                            .addComponent(keyLabelV, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                            .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                            .addComponent(keyLabelB, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                            .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                            .addComponent(keyLabelN, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                            .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                            .addComponent(keyLabelM, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                            .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                            .addComponent(keyLabelComma, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                            .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                            .addComponent(keyLabelPeriod, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                            .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                            .addComponent(keyLabelSlash, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                            .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                            .addComponent(keyLabelRightShift, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
+                        .addGroup(mainKeysPanelLayout.createSequentialGroup()
+                            .addComponent(keyLabelCapsLock, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                            .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                            .addComponent(keyLabelA, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                            .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                            .addComponent(keyLabelS, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                            .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                            .addComponent(keyLabelD, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                            .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                            .addComponent(keyLabelF, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                            .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                            .addComponent(keyLabelG, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                            .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                            .addComponent(keyLabelH, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                            .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                            .addComponent(keyLabelJ, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                            .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                            .addComponent(keyLabelK, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                            .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                            .addComponent(keyLabelL, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                            .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                            .addComponent(keyLabelSemicolon, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                            .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                            .addComponent(keyLabelQuote, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                            .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                            .addComponent(keyLabelEnter, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)))
                     .addGap(0, 0, 0))
             );
 
             mainKeysPanelLayout.linkSize(javax.swing.SwingConstants.HORIZONTAL, new java.awt.Component[] {keyLabelLeftShift, keyLabelRightShift});
 
-            mainKeysPanelLayout.linkSize(javax.swing.SwingConstants.HORIZONTAL, new java.awt.Component[] {keyLabelCapsLock, keyLabelEnter});
-
             mainKeysPanelLayout.linkSize(javax.swing.SwingConstants.HORIZONTAL, new java.awt.Component[] {keyLabelLeftControl, keyLabelRightControl});
 
-            mainKeysPanelLayout.linkSize(javax.swing.SwingConstants.HORIZONTAL, new java.awt.Component[] {keyLabelLeftCommand, keyLabelRightCommand});
+            mainKeysPanelLayout.linkSize(javax.swing.SwingConstants.HORIZONTAL, new java.awt.Component[] {keyLabelLeftStart, keyLabelRightStart});
 
             mainKeysPanelLayout.linkSize(javax.swing.SwingConstants.HORIZONTAL, new java.awt.Component[] {keyLabelLeftAlt, keyLabelRightAlt});
 
-            mainKeysPanelLayout.linkSize(javax.swing.SwingConstants.HORIZONTAL, new java.awt.Component[] {keyLabelLeftStart, keyLabelRightStart});
+            mainKeysPanelLayout.linkSize(javax.swing.SwingConstants.HORIZONTAL, new java.awt.Component[] {keyLabelLeftCommand, keyLabelRightCommand});
 
             mainKeysPanelLayout.setVerticalGroup(
                 mainKeysPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
@@ -2303,10 +2281,10 @@ public class KeyboardTest extends javax.swing.JFrame {
             keyLabelNumPadEnter.setHorizontalAlignment(javax.swing.SwingConstants.CENTER);
             keyLabelNumPadEnter.setText("Enter");
             keyLabelNumPadEnter.setBorder(javax.swing.BorderFactory.createLineBorder(new java.awt.Color(153, 153, 153), UIScale.scale(2)));
-            keyLabelNumPadEnter.setMaximumSize(new java.awt.Dimension(UIScale.scale(40), UIScale.scale(86)));
-            keyLabelNumPadEnter.setMinimumSize(new java.awt.Dimension(UIScale.scale(40), UIScale.scale(86)));
+            keyLabelNumPadEnter.setMaximumSize(new java.awt.Dimension(UIScale.scale(40), UIScale.scale(80) + 6));
+            keyLabelNumPadEnter.setMinimumSize(new java.awt.Dimension(UIScale.scale(40), UIScale.scale(80) + 6));
             keyLabelNumPadEnter.setOpaque(true);
-            keyLabelNumPadEnter.setPreferredSize(new java.awt.Dimension(UIScale.scale(40), UIScale.scale(86)));
+            keyLabelNumPadEnter.setPreferredSize(new java.awt.Dimension(UIScale.scale(40), UIScale.scale(80) + 6));
 
             keyLabelNumPad7.setBackground(java.awt.Color.white);
             keyLabelNumPad7.setFont(new java.awt.Font("Helvetica", 0, UIScale.scale(13))); // NOI18N
@@ -2413,7 +2391,6 @@ public class KeyboardTest extends javax.swing.JFrame {
             keyLabelNumPad0.setHorizontalAlignment(javax.swing.SwingConstants.CENTER);
             keyLabelNumPad0.setText("0");
             keyLabelNumPad0.setBorder(javax.swing.BorderFactory.createLineBorder(new java.awt.Color(153, 153, 153), UIScale.scale(2)));
-            keyLabelNumPad0.setMaximumSize(new java.awt.Dimension(UIScale.scale(40), UIScale.scale(40)));
             keyLabelNumPad0.setMinimumSize(new java.awt.Dimension(UIScale.scale(40), UIScale.scale(40)));
             keyLabelNumPad0.setOpaque(true);
             keyLabelNumPad0.setPreferredSize(new java.awt.Dimension(UIScale.scale(40), UIScale.scale(40)));
@@ -2439,7 +2416,7 @@ public class KeyboardTest extends javax.swing.JFrame {
                         .addGroup(numPadPanelLayout.createSequentialGroup()
                             .addGroup(numPadPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                                 .addGroup(numPadPanelLayout.createSequentialGroup()
-                                    .addComponent(keyLabelNumPad0, javax.swing.GroupLayout.PREFERRED_SIZE, UIScale.scale(86), javax.swing.GroupLayout.PREFERRED_SIZE)
+                                    .addComponent(keyLabelNumPad0, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
                                     .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                                     .addComponent(keyLabelNumPadDecimal, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
                                 .addGroup(numPadPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
@@ -2562,9 +2539,9 @@ public class KeyboardTest extends javax.swing.JFrame {
 
             mainMenuBar.setFocusable(false);
 
-            editMenu.setText("Edit");
-            editMenu.setFocusTraversalKeysEnabled(false);
-            editMenu.setFocusable(false);
+            optionsMenu.setText("Options");
+            optionsMenu.setFocusTraversalKeysEnabled(false);
+            optionsMenu.setFocusable(false);
 
             resetPressedKeysMenuItem.setAccelerator(javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_R, java.awt.event.InputEvent.CTRL_DOWN_MASK));
             resetPressedKeysMenuItem.setText("Reset Pressed Keys");
@@ -2573,7 +2550,7 @@ public class KeyboardTest extends javax.swing.JFrame {
                     resetPressedKeysMenuItemActionPerformed(evt);
                 }
             });
-            editMenu.add(resetPressedKeysMenuItem);
+            optionsMenu.add(resetPressedKeysMenuItem);
 
             toggleFullKeyboardMenuItem.setAccelerator(javax.swing.KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_T, java.awt.event.InputEvent.CTRL_DOWN_MASK));
             toggleFullKeyboardMenuItem.setText("Toggle Full Keyboard");
@@ -2582,9 +2559,18 @@ public class KeyboardTest extends javax.swing.JFrame {
                     toggleFullKeyboardMenuItemActionPerformed(evt);
                 }
             });
-            editMenu.add(toggleFullKeyboardMenuItem);
+            optionsMenu.add(toggleFullKeyboardMenuItem);
+            optionsMenu.add(optionsMenuSeparator);
 
-            mainMenuBar.add(editMenu);
+            showCreditsMenuItem.setText("Show Credits");
+            showCreditsMenuItem.addActionListener(new java.awt.event.ActionListener() {
+                public void actionPerformed(java.awt.event.ActionEvent evt) {
+                    showCreditsMenuItemActionPerformed(evt);
+                }
+            });
+            optionsMenu.add(showCreditsMenuItem);
+
+            mainMenuBar.add(optionsMenu);
 
             uiScaleMenu.setText("UI Scale");
 
@@ -2915,7 +2901,7 @@ public class KeyboardTest extends javax.swing.JFrame {
                                     + "- Any key felt funky in any way.<br/>"
                                     + "- Any key felt sticky or got stuck down.<br/>"
                                     + "- Any key caps are broken or missing."
-                                    + "</html>", "Finished Keyboard Test", JOptionPane.OK_CANCEL_OPTION, JOptionPane.INFORMATION_MESSAGE, null, everyKeyPressedDialogButtons, everyKeyPressedDialogButtons[0]);
+                                    + "</html>", "Finished Keyboard Test", JOptionPane.OK_CANCEL_OPTION, JOptionPane.INFORMATION_MESSAGE, new ScaledImage("AppIcon", keyboardTestWindow).toImageIcon(), everyKeyPressedDialogButtons, everyKeyPressedDialogButtons[0]);
 
                             if (everyKeyPressedDialogReturn == 0) {
                                 if (isRunningFromQAHelper) {
@@ -2928,7 +2914,7 @@ public class KeyboardTest extends javax.swing.JFrame {
                                     }
                                 } else if (!launchNextMacTestBootAppDialogButtons.isEmpty()) {
                                     launchNextMacTestBootAppDialogButtons.add("Quit");
-                                    int launchNextMacTestBootAppDialogReturn = JOptionPane.showOptionDialog(keyboardTestWindow, "What would you like to do next?", "Finished Keyboard Test", JOptionPane.DEFAULT_OPTION, JOptionPane.INFORMATION_MESSAGE, null, launchNextMacTestBootAppDialogButtons.toArray(), launchNextMacTestBootAppDialogButtons.get(0));
+                                    int launchNextMacTestBootAppDialogReturn = JOptionPane.showOptionDialog(keyboardTestWindow, "<html><b>What would you like to do next?</b></html>", "Finished Keyboard Test", JOptionPane.DEFAULT_OPTION, JOptionPane.INFORMATION_MESSAGE, new ScaledImage("AppIcon", keyboardTestWindow).toImageIcon(32), launchNextMacTestBootAppDialogButtons.toArray(), launchNextMacTestBootAppDialogButtons.get(0));
 
                                     String launchNextMacTestBootAppDialogDialogResponseString = "Quit";
                                     if (launchNextMacTestBootAppDialogReturn > -1) {
@@ -2956,6 +2942,93 @@ public class KeyboardTest extends javax.swing.JFrame {
             }
         }
     }//GEN-LAST:event_onKeyPressed
+
+    private void showCreditsMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_showCreditsMenuItemActionPerformed
+        if (creditsDialog == null) {
+            String appVersion = "UNKNOWN VERSION";
+            try (BufferedReader appVersionReader = new BufferedReader(new InputStreamReader(this.getClass().getResource("/Resources/keyboard-test-version.txt").openStream()))) {
+                appVersion = appVersionReader.readLine();
+                if (appVersion == null) {
+                    appVersion = "VERSION ERROR";
+                }
+
+                if (debugLogging) {
+                    System.out.println("appVersion: " + appVersion);
+                }
+            } catch (Exception getAppVersionException) {
+                if (debugLogging) {
+                    System.out.println("getAppVersionException: " + getAppVersionException);
+                }
+            }
+
+            creditsDialogEditorPane = new JEditorPane();
+            creditsDialogEditorPane.setContentType("text/html");
+            creditsDialogEditorPane.setText("<html>"
+                    + "<center>"
+                    + "<div style=\"padding: 10px;\">"
+                    + "<b style=\"font-size: larger\">Keyboard Test</b><br/>"
+                    + "<b>Version:</b> " + appVersion + " <span style=\"font-size: smaller\">(<b>Java:</b> " + System.getProperty("java.version") + ")</span>"
+                    + "</div>"
+                    + "<div style=\"padding: 10px; border-top: 1px solid #CCCCCC;\">"
+                    + "<a href=\"https://github.com/freegeek-pdx/Keyboard-Test/blob/main/LICENSE\">MIT License</a><br/>"
+                    + "Copyright &copy; 2020 <a href=\"https://github.com/darajnish\">Rajnish Mishra</a><br/>"
+                    + "Copyright &copy; 2024-" + Year.now().toString() + " <a href=\"https://www.freegeek.org\">Free Geek</a><br/>"
+                    + "<b><a href=\"https://github.com/freegeek-pdx/Keyboard-Test\">View Source on GitHub</a></b>"
+                    + "</div>"
+                    + "<div style=\"padding: 10px; border-top: 1px solid #CCCCCC;\">"
+                    + "<b>App Icon:</b><br/>Combination of <i>Keyboard</i> and <i>Index Pointing Up</i><br/>"
+                    + "from <a href=\"https://github.com/twitter/twemoji\">Twemoji</a> licensed under <a href=\"https://github.com/twitter/twemoji/blob/master/LICENSE-GRAPHICS\">CC-BY 4.0</a><br/>"
+                    + "Copyright &copy; 2021 <a href=\"https://www.twitter.com\">Twitter, Inc</a> and other contributors"
+                    + "</div>"
+                    + "<div style=\"padding: 10px; border-top: 1px solid #CCCCCC;\">"
+                    + "<b>UI Theme:</b><br/><a href=\"https://www.formdev.com/flatlaf/\">FlatLaf</a> licensed under the <a href=\"https://github.com/JFormDesigner/FlatLaf/blob/main/LICENSE\">Apache 2.0 License</a><br/>"
+                    + "Copyright &copy; 2025 <a href=\"https://www.formdev.com\">FormDev Software GmbH</a>. All rights reserved."
+                    + "</div>"
+                    + "</center>"
+                    + "</html>");
+            creditsDialogEditorPane.setCaretPosition(0);
+            creditsDialogEditorPane.setEditable(false);
+
+            creditsDialogEditorPane.addHyperlinkListener((HyperlinkEvent hyperlinkEvent) -> {
+                if (HyperlinkEvent.EventType.ACTIVATED.equals(hyperlinkEvent.getEventType())) {
+                    try {
+                        creditsDialogEditorPane.setCaretPosition(0);
+                        Desktop.getDesktop().browse(hyperlinkEvent.getURL().toURI());
+                    } catch (IOException | URISyntaxException openCreditsLinkException) {
+                        if (debugLogging) {
+                            System.out.println("openCreditsLinkException: " + openCreditsLinkException);
+                        }
+                    }
+                }
+            });
+
+            creditsDialogEditorPane.getInputMap(JEditorPane.WHEN_FOCUSED).put(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0), "closeOnEnterAction");
+            creditsDialogEditorPane.getActionMap().put("closeOnEnterAction", new AbstractAction() { // If "creditsEditorPane" is focused (from clicking a link), make "Enter" key close the window as the default dialog button would do.
+                @Override
+                public void actionPerformed(ActionEvent evt) {
+                    if ((creditsDialog != null) && creditsDialog.isVisible()) {
+                        creditsDialogEditorPane.setCaretPosition(0);
+                        creditsDialog.setVisible(false);
+                    }
+                }
+            });
+
+            creditsDialogScrollPane = new JScrollPane(creditsDialogEditorPane);
+            JOptionPane creditsOptionPane = new JOptionPane(creditsDialogScrollPane, JOptionPane.INFORMATION_MESSAGE, JOptionPane.DEFAULT_OPTION, new ScaledImage("AppIcon", this).toImageIcon(), new String[]{"Close Credits"}, "Close Credits");
+
+            creditsDialog = creditsOptionPane.createDialog(this, "Keyboard Test Credits");
+        }
+
+        if ((creditsDialog != null) && !creditsDialog.isVisible()) {
+            creditsDialogScrollPane.getVerticalScrollBar().setValue(0);
+            creditsDialogScrollPane.getHorizontalScrollBar().setValue(0);
+            creditsDialogEditorPane.setCaretPosition(0);
+            creditsDialog.setLocationRelativeTo(null);
+            creditsDialog.setVisible(true);
+        } else {
+            Toolkit.getDefaultToolkit().beep();
+        }
+    }//GEN-LAST:event_showCreditsMenuItemActionPerformed
 
     private void resetPressedKeysMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_resetPressedKeysMenuItemActionPerformed
         if (isMacLaptop) {
@@ -3179,15 +3252,24 @@ public class KeyboardTest extends javax.swing.JFrame {
                                 File windowsKeyboardTestRelauncherFile = new File(System.getProperty("java.io.tmpdir"), "Keyboard_Test-Relauncher.cmd");
 
                                 try (BufferedWriter bufferedWriter = new BufferedWriter(new FileWriter(windowsKeyboardTestRelauncherFile))) {
-                                    bufferedWriter.write(
+                                    bufferedWriter.write( // Checking for existance of each command file because they may not exists in WinPE/WinRE, in which case just skip the waiting and checking if running and just relaunch.
                                             "@ECHO OFF" + "\n"
                                             + "\n"
                                             + ":WaitForQuit" + "\n"
-                                            + "\\Windows\\System32\\timeout.exe /t 1 /nobreak >NUL" + "\n"
-                                            + "\\Windows\\System32\\tasklist.exe /nh /fi \"WINDOWTITLE eq Keyboard Test\" | \\Windows\\System32\\find.exe \"No tasks are running\" >NUL" + "\n"
-                                            + "IF ERRORLEVEL 1 (" + "\n"
-                                            + "\t" + "\\Windows\\System32\\taskkill.exe /fi \"WINDOWTITLE eq Keyboard Test\" >NUL" + "\n"
-                                            + "\t" + "GOTO WaitForQuit" + "\n"
+                                            + "IF EXIST \"\\Windows\\System32\\timeout.exe\" (" + "\n"
+                                            + "\t" + "\\Windows\\System32\\timeout.exe /t 1 /nobreak >NUL" + "\n"
+                                            + ")" + "\n"
+                                            + "\n"
+                                            + "IF EXIST \"\\Windows\\System32\\tasklist.exe\" (" + "\n"
+                                            + "\t" + "IF EXIST \"\\Windows\\System32\\find.exe\" (" + "\n"
+                                            + "\t\t" + "\\Windows\\System32\\tasklist.exe /nh /fi \"WINDOWTITLE eq Keyboard Test\" | \\Windows\\System32\\find.exe \"No tasks are running\" >NUL" + "\n"
+                                            + "\t\t" + "IF ERRORLEVEL 1 (" + "\n"
+                                            + "\t\t\t" + "IF EXIST \"\\Windows\\System32\\taskkill.exe\" (" + "\n"
+                                            + "\t\t\t\t" + "\\Windows\\System32\\taskkill.exe /fi \"WINDOWTITLE eq Keyboard Test\" >NUL" + "\n"
+                                            + "\t\t\t" + ")" + "\n"
+                                            + "\t\t\t" + "GOTO WaitForQuit" + "\n"
+                                            + "\t\t" + ")" + "\n"
+                                            + "\t" + ")" + "\n"
                                             + ")" + "\n"
                                             + "\n"
                                             + "START \"Keyboard Test Relauncher\" \"" + javaPath + "\" -jar \"" + launchPath + "\" \"" + newUIScalePercentage + "%%\"" + "\n" // In batch script, the percent sign needs to be doubled to escape it to a literal percent sign character.
@@ -3292,7 +3374,6 @@ public class KeyboardTest extends javax.swing.JFrame {
     private javax.swing.JPanel contentPane;
     private javax.swing.JScrollPane contentScrollPane;
     private javax.swing.JMenuItem decreaseUIScaleMenuItem;
-    private javax.swing.JMenu editMenu;
     private javax.swing.JMenuItem increaseUIScaleMenuItem;
     private javax.swing.JLabel keyLabel0;
     private javax.swing.JLabel keyLabel1;
@@ -3406,9 +3487,12 @@ public class KeyboardTest extends javax.swing.JFrame {
     private javax.swing.JPanel mainKeysPanel;
     private javax.swing.JMenuBar mainMenuBar;
     private javax.swing.JPanel numPadPanel;
+    private javax.swing.JMenu optionsMenu;
+    private javax.swing.JPopupMenu.Separator optionsMenuSeparator;
     private javax.swing.JPanel otherKeysPanel;
     private javax.swing.JMenuItem resetPressedKeysMenuItem;
     private javax.swing.JMenuItem resetUIScaleMenuItem;
+    private javax.swing.JMenuItem showCreditsMenuItem;
     private javax.swing.JTextArea textArea;
     private javax.swing.JScrollPane textAreaScrollPane;
     private javax.swing.JMenuItem toggleFullKeyboardMenuItem;

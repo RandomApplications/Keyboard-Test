@@ -11,7 +11,9 @@
 	<key>CFBundleExecutable</key>
 	<string>Keyboard Test</string>
 	<key>CFBundleIconFile</key>
-	<string>Keyboard Test.icns</string>
+	<string>Keyboard Test</string>
+	<key>CFBundleIconName</key>
+	<string>Keyboard Test</string>
 	<key>CFBundleIdentifier</key>
 	<string>org.freegeek.Keyboard-Test</string>
 	<key>CFBundleInfoDictionaryVersion</key>
@@ -30,7 +32,7 @@
 	<string>Copyright © 2020 Rajnish Mishra
 Copyright © 2024-2025 Free Geek
 
-App Icon is “Keyboard” from Twemoji by Twitter licensed under CC-BY 4.0</string>
+App Icon is a combination of “Keyboard” and “Index Pointing Up” from Twemoji by Twitter licensed under CC-BY 4.0</string>
 	<key>NSHighResolutionCapable</key>
 	<string>true</string>
 	<key>LSMultipleInstancesProhibited</key>

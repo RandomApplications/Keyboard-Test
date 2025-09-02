@@ -53,8 +53,8 @@ if grep 'Dimension(45, 40)' './'*'.java'; then
 	sed -i '' 's/Dimension(45, 40)/Dimension(UIScale.scale(45), UIScale.scale(40))/' './'*'.java'
 fi
 
-if grep 'Dimension(40, 86)' './'*'.java'; then
-	sed -i '' 's/Dimension(40, 86)/Dimension(UIScale.scale(40), UIScale.scale(86))/' './'*'.java'
+if grep 'Dimension(40, 86)' './'*'.java'; then # Only UIScale the 80 part since the 6 pixel gap will not be scaled and should stay 6 pixels.
+	sed -i '' 's/Dimension(40, 86)/Dimension(UIScale.scale(40), UIScale.scale(80) + 6)/' './'*'.java'
 fi
 
 if grep 'Dimension(75, 40)' './'*'.java'; then
@@ -65,16 +65,16 @@ if grep 'Dimension(100, 130)' './'*'.java'; then
 	sed -i '' 's/Dimension(100, 130)/Dimension(UIScale.scale(100), UIScale.scale(130))/' './'*'.java'
 fi
 
+if grep 'Dimension(107, 40)' './'*'.java'; then
+	sed -i '' 's/Dimension(107, 40)/Dimension(UIScale.scale(107), UIScale.scale(40))/' './'*'.java'
+fi
+
 # if grep 'Insets(6, 6, 6, 6)' './'*'.java'; then # The textArea inset margins actually look better at large scales WITHOUT also scaling the insets.
 # 	sed -i '' 's/Insets(6, 6, 6, 6)/Insets(UIScale.scale(6), UIScale.scale(6), UIScale.scale(6), UIScale.scale(6))/' './'*'.java'
 # fi
 
 if grep 'addGap(18, 18, 18)' './'*'.java'; then
 	sed -i '' 's/addGap(18, 18, 18)/addGap(UIScale.scale(18), UIScale.scale(18), UIScale.scale(18))/' './'*'.java'
-fi
-
-if grep 'addGap(46, 46, 46)' './'*'.java'; then
-	sed -i '' 's/addGap(46, 46, 46)/addGap(UIScale.scale(46), UIScale.scale(46), UIScale.scale(46))/' './'*'.java'
 fi
 
 if grep 'addGap(0, 40, Short.MAX_VALUE)' './'*'.java'; then
@@ -87,18 +87,6 @@ fi
 
 if grep 'PREFERRED_SIZE, 40,' './'*'.java'; then
 	sed -i '' 's/PREFERRED_SIZE, 40,/PREFERRED_SIZE, UIScale.scale(40),/' './'*'.java'
-fi
-
-if grep 'PREFERRED_SIZE, 86,' './'*'.java'; then
-	sed -i '' 's/PREFERRED_SIZE, 86,/PREFERRED_SIZE, UIScale.scale(86),/' './'*'.java'
-fi
-
-if grep 'DEFAULT_SIZE, 84,' './'*'.java'; then
-	sed -i '' 's/DEFAULT_SIZE, 84,/DEFAULT_SIZE, UIScale.scale(84),/' './'*'.java'
-fi
-
-if grep 'DEFAULT_SIZE, 107,' './'*'.java'; then
-	sed -i '' 's/DEFAULT_SIZE, 107,/DEFAULT_SIZE, UIScale.scale(107),/' './'*'.java'
 fi
 
 echo -e '\nDone UIScaling Everything\n\n'
