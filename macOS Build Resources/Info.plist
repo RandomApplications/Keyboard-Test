@@ -13,7 +13,7 @@
 	<key>CFBundleIconFile</key>
 	<string>Keyboard Test</string>
 	<key>CFBundleIconName</key>
-	<string>Keyboard Test</string>
+	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
 	<string>org.freegeek.Keyboard-Test</string>
 	<key>CFBundleInfoDictionaryVersion</key>

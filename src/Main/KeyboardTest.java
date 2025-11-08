@@ -51,7 +51,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 import javax.imageio.ImageIO;
 import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
@@ -190,6 +189,17 @@ public class KeyboardTest extends javax.swing.JFrame {
                         "Button.default.borderWidth", "Button.default.foreground", "Button.default.background", "Button.default.focusedBackground"};
                     for (String thisUIDefault : resetUIDefaults) {
                         UIManager.put(thisUIDefault, defaultLaf.getDefaults().get(thisUIDefault));
+                    }
+
+                    try {
+                        String[] osVersionParts = System.getProperty("os.version").replaceAll("[^0-9.]", "").split("\\.");
+                        if (Integer.parseInt(osVersionParts[0]) >= 26) { // Increase the corner radius for macOS 26 Tahoe.
+                            UIManager.put("Button.arc", 14);
+                            UIManager.put("Component.arc", 14);
+                            UIManager.put("CheckBox.arc", 10);
+                        }
+                    } catch (NumberFormatException parseVersionPartException) {
+                        // Ignore parseVersionPartException
                     }
 
                     // Copying font setting technique from https://github.com/JFormDesigner/FlatLaf/blob/3a784375d087c0e19903c77eb2936400cf38712e/flatlaf-core/src/main/java/com/formdev/flatlaf/FlatLaf.java#L495
@@ -2807,6 +2817,16 @@ public class KeyboardTest extends javax.swing.JFrame {
             pressedKeyLabel.setBackground(Color.ORANGE);
             pressedKeyLabel.setForeground(Color.BLACK);
 
+            if ((pressedKeyLabel.getFont().getStyle() & Font.ITALIC) == 0) {
+                try {
+                    pressedKeyLabel.setFont(pressedKeyLabel.getFont().deriveFont(Font.BOLD));
+                } catch (UnsupportedOperationException updateKeyLabelStyleException) {
+                    if (debugLogging) {
+                        System.out.println("updateKeyLabelStyleException: " + updateKeyLabelStyleException);
+                    }
+                }
+            }
+
             (new SwingWorker<Void, Void>() {
                 @Override
                 protected Void doInBackground() throws Exception {
@@ -2821,6 +2841,16 @@ public class KeyboardTest extends javax.swing.JFrame {
                         pressedKeyLabel.setBorder(keyLabelGreenHighlightBorder);
                         pressedKeyLabel.setBackground(keyLabelGreenHighlightBackgroundColor);
                         pressedKeyLabel.setForeground(Color.WHITE);
+
+                        if ((pressedKeyLabel.getFont().getStyle() & Font.ITALIC) == 0) {
+                            try {
+                                pressedKeyLabel.setFont(pressedKeyLabel.getFont().deriveFont(Font.PLAIN));
+                            } catch (UnsupportedOperationException updateKeyLabelStyleException) {
+                                if (debugLogging) {
+                                    System.out.println("updateKeyLabelStyleException: " + updateKeyLabelStyleException);
+                                }
+                            }
+                        }
                     }
 
                     textArea.requestFocusInWindow();
@@ -2875,6 +2905,16 @@ public class KeyboardTest extends javax.swing.JFrame {
                                     thisKeyLabel.setBorder(keyLabelGreenHighlightBorder);
                                     thisKeyLabel.setBackground(keyLabelGreenHighlightBackgroundColor);
                                     thisKeyLabel.setForeground(Color.WHITE);
+                                }
+
+                                if ((thisKeyLabel.getFont().getStyle() & Font.ITALIC) == 0) {
+                                    try {
+                                        thisKeyLabel.setFont(thisKeyLabel.getFont().deriveFont(Font.PLAIN));
+                                    } catch (UnsupportedOperationException updateKeyLabelStyleException) {
+                                        if (debugLogging) {
+                                            System.out.println("updateKeyLabelStyleException: " + updateKeyLabelStyleException);
+                                        }
+                                    }
                                 }
                             }
 
@@ -3056,6 +3096,16 @@ public class KeyboardTest extends javax.swing.JFrame {
                     thisKeyLabel.setBorder(keyLabelBorder);
                     thisKeyLabel.setBackground(Color.WHITE);
                     thisKeyLabel.setForeground(Color.BLACK);
+
+                    if ((thisKeyLabel.getFont().getStyle() & Font.ITALIC) == 0) {
+                        try {
+                            thisKeyLabel.setFont(thisKeyLabel.getFont().deriveFont(Font.PLAIN));
+                        } catch (UnsupportedOperationException updateKeyLabelStyleException) {
+                            if (debugLogging) {
+                                System.out.println("updateKeyLabelStyleException: " + updateKeyLabelStyleException);
+                            }
+                        }
+                    }
                 });
             }
         }).execute();

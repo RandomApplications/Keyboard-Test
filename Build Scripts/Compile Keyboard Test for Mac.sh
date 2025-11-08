@@ -26,7 +26,7 @@ if [[ "$(uname)" == 'Darwin' ]]; then # Can only compile macOS app when running 
 	PROJECT_PATH="$(cd "${BASH_SOURCE[0]%/*}/.." &> /dev/null && pwd -P)"
 	readonly PROJECT_PATH
 
-	readonly ZIPS_FOR_AUTO_UPDATE_PATH="${PROJECT_PATH}/../MacLand/ZIPs for Auto-Update"
+	readonly ZIPS_FOR_AUTO_UPDATE_PATH='/Users/Shared/Mac Deployment/App ZIPs for Auto-Update'
 
 	if [[ ! -e "${PROJECT_PATH}/dist/JAR for macOS/Keyboard_Test.jar" ]]; then
 		>&2 echo -e '\n\n!!! JAR for macOS NOT FOUND !!!'
@@ -270,7 +270,7 @@ if [[ "$(uname)" == 'Darwin' ]]; then # Can only compile macOS app when running 
 
 	rm -f "${codesign_entitlements_plist_path}"
 
-	if $should_notarize && osascript -e 'activate' -e "display alert \"Notarize Keyboard Test version ${app_version}?\" buttons {\"No\", \"Yes\"} cancel button 1 default button 2" &> /dev/null; then
+	if $should_notarize && osascript -e 'activate' -e "display dialog \"Notarize Keyboard Test version ${app_version}?\" buttons {\"No\", \"Yes\"} cancel button 1 default button 2 with title \"Notarize Keyboard Test\" with icon (\"${PROJECT_PATH}/macOS Build Resources/Keyboard Test.icns\" as POSIX file)" &> /dev/null; then
 		# Setting up "notarytool": https://scriptingosx.com/2021/07/notarize-a-command-line-tool-with-notarytool/ & https://developer.apple.com/documentation/security/notarizing_macos_software_before_distribution/customizing_the_notarization_workflow
 
 		keyboard_test_mac_zip_path_for_notarization="${PROJECT_PATH}/dist/${keyboard_test_mac_zip_name/.zip/-NOTARIZATION-SUBMISSION.zip}"
@@ -337,15 +337,19 @@ if [[ "$(uname)" == 'Darwin' ]]; then # Can only compile macOS app when running 
 			else
 				echo "Keyboard Test: ${app_version}" >> "${ZIPS_FOR_AUTO_UPDATE_PATH}/latest-versions.txt"
 			fi
+
+			open -R "${ZIPS_FOR_AUTO_UPDATE_PATH}/${keyboard_test_mac_zip_name}"
 		fi
 
 		keyboard_test_mac_zip_name_with_version="KeyboardTest-mac-${app_version}.zip"
 		rm -f "${PROJECT_PATH}/dist/${keyboard_test_mac_zip_name_with_version}"
 		mv -f "${PROJECT_PATH}/dist/${keyboard_test_mac_zip_name}" "${PROJECT_PATH}/dist/${keyboard_test_mac_zip_name_with_version}"
 
+		open -R "${PROJECT_PATH}/dist/${keyboard_test_mac_zip_name_with_version}"
+
 		echo -e "\nSuccessfully Notarized Keyboard Test Version ${app_version}!"
 
-		osascript -e 'activate' -e "display alert \"Successfully Notarized & Zipped\nKeyboard Test Version ${app_version}!\"" &> /dev/null
+		osascript -e 'activate' -e "display dialog \"Successfully Notarized & Zipped\nKeyboard Test Version ${app_version}!\" buttons {\"OK\"} default button 1 with title \"Successfully Notarized Keyboard Test\" with icon (\"${PROJECT_PATH}/macOS Build Resources/Keyboard Test.icns\" as POSIX file)" &> /dev/null
 	fi
 
 	open -na "${PROJECT_PATH}/dist/Keyboard Test.app"
